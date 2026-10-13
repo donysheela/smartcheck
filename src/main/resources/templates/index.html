@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SmartCheck | Student tracking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-white">
+<main class="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-16">
+    <div class="mb-12">
+        <p class="mb-3 text-sm font-semibold uppercase tracking-[.25em] text-cyan-300">SmartCheck</p>
+        <h1 class="text-4xl font-bold tracking-tight sm:text-6xl">Focused time.<br><span class="text-cyan-300">Clear progress.</span></h1>
+        <p class="mt-5 max-w-xl text-lg text-slate-300">Choose how you want to use the student session tracker.</p>
+    </div>
+    <div class="grid gap-5 sm:grid-cols-2">
+        <a th:href="@{/tutor}" class="group rounded-3xl border border-white/10 bg-white/5 p-8 transition hover:-translate-y-1 hover:border-cyan-300/60 hover:bg-white/10">
+            <span class="mb-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-300 text-2xl text-slate-950">T</span>
+            <h2 class="text-3xl font-semibold">Tutor</h2>
+            <p class="mt-2 text-slate-300">Manage tutors, students, session settings, and reports.</p>
+            <span class="mt-8 inline-block font-semibold text-cyan-300">Open tutor dashboard →</span>
+        </a>
+        <a th:href="@{/student}" class="group rounded-3xl border border-white/10 bg-white/5 p-8 transition hover:-translate-y-1 hover:border-violet-300/60 hover:bg-white/10">
+            <span class="mb-10 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-300 text-2xl text-slate-950">S</span>
+            <h2 class="text-3xl font-semibold">Student</h2>
+            <p class="mt-2 text-slate-300">Find your name and start a timed study session.</p>
+            <span class="mt-8 inline-block font-semibold text-violet-300">Start a session →</span>
+        </a>
+    </div>
+</main>
+</body>
+</html>

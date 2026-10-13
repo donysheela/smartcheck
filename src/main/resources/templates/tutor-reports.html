@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tutor reports | SmartCheck</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900">
+<header class="bg-slate-950 px-5 py-5 text-white">
+    <div class="mx-auto flex max-w-6xl items-center justify-between">
+        <a th:href="@{/}" class="font-bold tracking-wide">SmartCheck</a>
+        <nav class="flex gap-5 text-sm text-slate-300">
+            <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
+            <a th:href="@{/}" class="hover:text-white">Home</a>
+        </nav>
+    </div>
+</header>
+<main class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <p class="text-sm font-semibold uppercase tracking-widest text-cyan-700">Tutor workspace</p>
+            <h1 class="mt-1 text-3xl font-bold">Reports</h1>
+            <p class="mt-2 text-slate-600">Session activity for <span th:text="${rangeLabel}">all dates through today</span>.</p>
+        </div>
+        <a th:href="@{/tutor/reports/export(fromDate=${fromDate},toDate=${toDate})}" class="rounded-xl bg-cyan-700 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-800">Export to Excel</a>
+    </div>
+    <form method="get" th:action="@{/tutor/reports}" class="mb-6 flex flex-wrap items-end gap-4 rounded-2xl bg-white p-5 shadow-sm">
+        <label class="text-sm font-medium text-slate-700">From date (optional)
+            <input type="date" name="fromDate" th:value="${fromDate}" th:max="${today}" class="mt-1 block rounded-xl border border-slate-300 px-3 py-2">
+        </label>
+        <label class="text-sm font-medium text-slate-700">To date (optional)
+            <input type="date" name="toDate" th:value="${toDate}" th:max="${today}" class="mt-1 block rounded-xl border border-slate-300 px-3 py-2">
+        </label>
+        <button type="submit" class="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">Apply dates</button>
+        <a th:href="@{/tutor/reports}" class="text-sm font-semibold text-cyan-700 hover:text-cyan-900">Clear dates</a>
+    </form>
+    <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article class="rounded-2xl bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">Total students</p>
+            <p class="mt-2 text-3xl font-bold" th:text="${studentCount}">0</p>
+        </article>
+        <article class="rounded-2xl bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">Active sessions now</p>
+            <p class="mt-2 text-3xl font-bold" th:text="${activeCount}">0</p>
+        </article>
+        <article class="rounded-2xl bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">Sessions started in range</p>
+            <p class="mt-2 text-3xl font-bold" th:text="${sessionCount}">0</p>
+        </article>
+        <article class="rounded-2xl bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">Completed sessions in range</p>
+            <p class="mt-2 text-3xl font-bold" th:text="${completedCount}">0</p>
+        </article>
+        <article class="rounded-2xl bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">Students with sessions in range</p>
+            <p class="mt-2 text-3xl font-bold" th:text="${participatingStudentCount}">0</p>
+        </article>
+    </section>
+    <section class="mt-6 rounded-2xl bg-white p-5 shadow-sm sm:p-7">
+        <h2 class="mb-4 text-xl font-bold">Sessions in range</h2>
+        <p th:if="${#lists.isEmpty(sessions)}" class="text-sm text-slate-500">No sessions were started in this date range.</p>
+        <div th:unless="${#lists.isEmpty(sessions)}" class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="border-b border-slate-200 text-slate-500">
+                <tr><th class="px-3 py-3 font-medium">Student</th><th class="px-3 py-3 font-medium">Gender</th><th class="px-3 py-3 font-medium">Started</th><th class="px-3 py-3 font-medium">Status</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="recentSession : ${sessions}" class="border-b border-slate-100 last:border-0">
+                    <td class="px-3 py-3 font-medium"><span th:text="${recentSession.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.student.name}"></span></td>
+                    <td class="px-3 py-3" th:text="${recentSession.student.gender}"></td>
+                    <td class="px-3 py-3 text-slate-600" th:text="${recentSession.startedAt}"></td>
+                    <td class="px-3 py-3" th:text="${recentSession.active ? 'In progress' : 'Completed'}"></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

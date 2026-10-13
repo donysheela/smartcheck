@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Student session | SmartCheck</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-white">
+<main class="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
+    <a th:href="@{/}" class="text-sm text-slate-300">← Back home</a>
+    <header class="mb-8 mt-8">
+        <p class="text-sm font-semibold uppercase tracking-[.2em] text-violet-300">Student session</p>
+        <h1 class="mt-2 text-4xl font-bold">Ready to focus?</h1>
+        <p class="mt-3 text-slate-300">Search for your name to start your configured session timer.</p>
+    </header>
+    <div th:if="${error}" class="mb-5 rounded-xl bg-rose-900/70 px-4 py-3 text-rose-100" th:text="${error}"></div>
+    <section th:if="${activeSession}" class="mb-6 rounded-3xl border border-emerald-300/30 bg-emerald-300/10 p-6 sm:p-8">
+        <p class="text-sm font-semibold uppercase tracking-widest text-emerald-300">Session in progress</p>
+        <h2 class="mt-2 text-2xl font-semibold"><span th:text="${activeSession.student.genmoji}" aria-hidden="true"></span> <span th:text="${activeSession.student.name}"></span></h2>
+        <p class="mt-1 text-slate-300">Stay focused until your timer reaches zero.</p>
+        <div id="countdown" class="my-6 text-6xl font-bold tabular-nums text-emerald-200" aria-live="polite">--:--</div>
+        <p id="timer-message" class="text-sm text-slate-300"></p>
+    </section>
+    <section class="rounded-3xl bg-white p-5 text-slate-900 shadow-xl sm:p-8">
+        <form method="get" th:action="@{/student}" class="flex flex-col gap-3 sm:flex-row">
+            <label class="sr-only" for="query">Student name</label>
+            <div class="relative flex-1">
+                <input id="query" name="query" th:value="${query}" required autocomplete="off"
+                       th:attr="data-suggestions-url=@{/student/suggestions}"
+                       placeholder="Enter at least 3 letters" aria-describedby="suggestion-status"
+                       aria-autocomplete="list" aria-controls="student-suggestions"
+                       class="min-h-14 w-full rounded-xl border border-slate-300 px-4 text-lg outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200">
+                <ul id="student-suggestions" role="listbox"
+                    class="absolute z-10 mt-1 hidden max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"></ul>
+            </div>
+            <button class="min-h-14 rounded-xl bg-violet-700 px-7 font-semibold text-white hover:bg-violet-800">Search</button>
+        </form>
+        <p id="suggestion-status" class="mt-2 text-sm text-slate-500" aria-live="polite">Type at least 3 characters to see matching student names.</p>
+        <div th:if="${!#strings.isEmpty(query)}" class="mt-6">
+            <h2 class="mb-3 font-semibold">Matching students</h2>
+            <p th:if="${#lists.isEmpty(results)}" class="rounded-xl bg-slate-100 p-4 text-slate-600">No students found. Check your spelling or ask your tutor to add you.</p>
+            <div class="space-y-3">
+                <article th:each="student : ${results}" class="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center">
+                    <div>
+                        <h3 class="text-lg font-semibold"><span th:text="${student.genmoji}" aria-hidden="true"></span> <span th:text="${student.name}"></span></h3>
+                        <p class="text-sm text-slate-500"><span th:text="${student.gender}"></span> · <span th:text="${student.sessionMinutes}"></span> minute session</p>
+                    </div>
+                    <form method="post" th:action="@{/student/start}">
+                        <input type="hidden" name="studentId" th:value="${student.id}">
+                        <button class="w-full rounded-xl bg-slate-950 px-6 py-3 font-semibold text-white hover:bg-slate-800 sm:w-auto">Start session</button>
+                    </form>
+                </article>
+            </div>
+        </div>
+    </section>
+    <p class="mt-5 text-center text-xs text-slate-400">Your tutor will be notified when your session is nearing its end.</p>
+</main>
+<script>
+    const studentSearch = document.getElementById("query");
+    const suggestionsList = document.getElementById("student-suggestions");
+    const suggestionStatus = document.getElementById("suggestion-status");
+    const studentSearchForm = studentSearch.form;
+    let suggestionTimeout;
+    let suggestionRequest;
+
+    function hideSuggestions() {
+        suggestionsList.replaceChildren();
+        suggestionsList.classList.add("hidden");
+    }
+
+    studentSearch.addEventListener("input", () => {
+        clearTimeout(suggestionTimeout);
+        if (suggestionRequest) {
+            suggestionRequest.abort();
+        }
+
+        const query = studentSearch.value.trim();
+        hideSuggestions();
+        if (query.length < 3) {
+            suggestionStatus.textContent = "Type at least 3 characters to see matching student names.";
+            return;
+        }
+
+        suggestionStatus.textContent = "Looking up matching students…";
+        suggestionTimeout = setTimeout(async () => {
+            suggestionRequest = new AbortController();
+            try {
+                const response = await fetch(
+                    `${studentSearch.dataset.suggestionsUrl}?query=${encodeURIComponent(query)}`,
+                    {signal: suggestionRequest.signal}
+                );
+                if (!response.ok) {
+                    throw new Error(`Suggestion request failed (${response.status}).`);
+                }
+                const names = await response.json();
+                names.forEach(name => {
+                    const item = document.createElement("li");
+                    item.setAttribute("role", "option");
+                    const option = document.createElement("button");
+                    option.type = "button";
+                    option.className = "w-full px-4 py-2 text-left hover:bg-violet-50 focus:bg-violet-50 focus:outline-none";
+                    option.textContent = name;
+                    option.addEventListener("click", () => {
+                        studentSearch.value = name;
+                        hideSuggestions();
+                        studentSearchForm.requestSubmit();
+                    });
+                    item.appendChild(option);
+                    suggestionsList.appendChild(item);
+                });
+                suggestionsList.classList.toggle("hidden", names.length === 0);
+                suggestionStatus.textContent = names.length
+                    ? `${names.length} matching student name${names.length === 1 ? "" : "s"} available.`
+                    : "No matching student names found.";
+            } catch (error) {
+                if (error.name === "AbortError") {
+                    return;
+                }
+                suggestionStatus.textContent = "Could not load suggestions. Please try again.";
+                console.error(error);
+            }
+        }, 250);
+    });
+
+    document.addEventListener("click", event => {
+        if (!suggestionsList.contains(event.target) && event.target !== studentSearch) {
+            suggestionsList.classList.add("hidden");
+        }
+    });
+    studentSearch.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            suggestionsList.classList.add("hidden");
+        }
+    });
+</script>
+<script th:if="${activeSession}" th:inline="javascript">
+    const sessionEndsAt = new Date(/*[[${activeSession.endsAt}]]*/ "").getTime();
+    const countdown = document.getElementById("countdown");
+    const timerMessage = document.getElementById("timer-message");
+    function updateTimer() {
+        const remaining = Math.max(0, Math.floor((sessionEndsAt - Date.now()) / 1000));
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        countdown.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        if (remaining === 0) {
+            timerMessage.textContent = "Your configured session time is complete.";
+            clearInterval(timerInterval);
+        }
+    }
+    const timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+</script>
+</body>
+</html>
