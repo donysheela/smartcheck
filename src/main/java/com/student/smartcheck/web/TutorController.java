@@ -5,6 +5,7 @@ import com.student.smartcheck.domain.TrackingSession;
 import com.student.smartcheck.domain.Gender;
 import com.student.smartcheck.domain.Student;
 import com.student.smartcheck.domain.Tutor;
+import com.student.smartcheck.util.DateTimeDisplay;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -39,7 +40,7 @@ public class TutorController {
     public String dashboard(Model model) {
         model.addAttribute("tutors", service.tutors());
         model.addAttribute("students", service.students());
-        model.addAttribute("sessions", service.recentSessions());
+        model.addAttribute("sessions", service.recentSessions().stream().map(this::sessionDisplay).toList());
         model.addAttribute("activeCount", service.activeSessionCount());
         return "tutor";
     }
@@ -86,8 +87,8 @@ public class TutorController {
                 Row row = sessionSheet.createRow(i + 1);
                 row.createCell(0).setCellValue(session.getStudent().getName());
                 row.createCell(1).setCellValue(session.getStudent().getGender().toString());
-                row.createCell(2).setCellValue(session.getStartedAt().toString());
-                row.createCell(3).setCellValue(session.getEndsAt().toString());
+                row.createCell(2).setCellValue(DateTimeDisplay.format(session.getStartedAt()));
+                row.createCell(3).setCellValue(DateTimeDisplay.format(session.getEndsAt()));
                 row.createCell(4).setCellValue(session.getStudent().getSessionMinutes());
                 row.createCell(5).setCellValue(session.isActive() ? "In progress" : "Completed");
             }
@@ -137,7 +138,7 @@ public class TutorController {
         model.addAttribute("fromDate", report.fromDate());
         model.addAttribute("toDate", report.toDate());
         model.addAttribute("rangeLabel", report.rangeLabel());
-        model.addAttribute("sessions", report.sessions());
+        model.addAttribute("sessions", report.sessions().stream().map(this::sessionDisplay).toList());
         model.addAttribute("sessionCount", report.sessions().size());
         model.addAttribute("completedCount", report.completedCount());
         model.addAttribute("participatingStudentCount", report.participatingStudentCount());
@@ -155,10 +156,17 @@ public class TutorController {
         row.createCell(1).setCellValue(value);
     }
 
+    private SessionDisplay sessionDisplay(TrackingSession session) {
+        return new SessionDisplay(session, DateTimeDisplay.format(session.getStartedAt()));
+    }
+
     private record ReportData(LocalDate today, LocalDate fromDate, LocalDate toDate,
                               String rangeLabel, String fileRange, long studentCount, long activeCount,
                               java.util.List<TrackingSession> sessions, long completedCount,
                               long participatingStudentCount) {
+    }
+
+    private record SessionDisplay(TrackingSession session, String startedAt) {
     }
 
     @PostMapping("/tutors")

@@ -67,10 +67,10 @@
                 </thead>
                 <tbody>
                 <tr th:each="recentSession : ${sessions}" class="border-b border-slate-100 last:border-0">
-                    <td class="px-3 py-3 font-medium"><span th:text="${recentSession.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.student.name}"></span></td>
-                    <td class="px-3 py-3" th:text="${recentSession.student.gender}"></td>
+                    <td class="px-3 py-3 font-medium"><span th:text="${recentSession.session.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.session.student.name}"></span></td>
+                    <td class="px-3 py-3" th:text="${recentSession.session.student.gender}"></td>
                     <td class="px-3 py-3 text-slate-600" th:text="${recentSession.startedAt}"></td>
-                    <td class="px-3 py-3" th:text="${recentSession.active ? 'In progress' : 'Completed'}"></td>
+                    <td class="px-3 py-3" th:text="${recentSession.session.active ? 'In progress' : 'Completed'}"></td>
                 </tr>
                 </tbody>
             </table>

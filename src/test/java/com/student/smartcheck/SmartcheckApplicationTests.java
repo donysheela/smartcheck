@@ -95,9 +95,26 @@ class SmartcheckApplicationTests {
                 HttpResponse.BodyHandlers.ofByteArray());
         assertThat(export.statusCode()).isBetween(200, 299);
         try (XSSFWorkbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(export.body()))) {
-            assertThat(workbook.getSheet("Sessions").getRow(1).getCell(0).getStringCellValue())
+            var sessionRow = workbook.getSheet("Sessions").getRow(1);
+            assertThat(sessionRow.getCell(0).getStringCellValue())
                     .isEqualTo("Jordan Student");
+            assertThat(sessionRow.getCell(2).getStringCellValue())
+                    .containsPattern("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}");
+            assertThat(sessionRow.getCell(3).getStringCellValue())
+                    .containsPattern("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}");
         }
+
+        String timestampPattern = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}";
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> tutorPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> reportsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/reports?fromDate="
+                        + LocalDate.now() + "&toDate=" + LocalDate.now())).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(tutorPage.body()).containsPattern(timestampPattern);
+        assertThat(reportsPage.body()).containsPattern(timestampPattern);
 
         HttpResponse<String> studentPage = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/student?query=Jordan%20Student&session=" + session.getId()))
