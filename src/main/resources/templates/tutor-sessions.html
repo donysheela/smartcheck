@@ -27,6 +27,8 @@
         <a th:href="@{/tutor}" class="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">Back to dashboard</a>
     </div>
     <section class="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
+        <div th:if="${success}" class="mb-4 rounded-xl bg-emerald-100 px-4 py-3 text-emerald-900" th:text="${success}"></div>
+        <div th:if="${error}" class="mb-4 rounded-xl bg-rose-100 px-4 py-3 text-rose-900" th:text="${error}"></div>
         <div th:if="${sessions.totalElements == 0}" class="text-sm text-slate-500">Session activity will appear here.</div>
         <div data-sessions-list class="space-y-3">
             <article th:each="recentSession : ${sessions}"
@@ -36,12 +38,25 @@
                      class="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-4">
                 <div>
                     <p class="font-semibold"><span th:text="${recentSession.session.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.session.student.name}"></span></p>
-                    <p class="text-sm text-slate-500" th:text="${recentSession.startedAt}"></p>
+                    <p class="text-sm text-slate-500">Started <span th:text="${recentSession.startedAt}"></span></p>
+                    <p th:if="${!recentSession.inProgress}" class="text-sm text-slate-500">Ended <span th:text="${recentSession.completedAt}"></span></p>
+                    <p th:if="${recentSession.addedMinutes > 0}" class="text-sm text-slate-500">
+                        Added <span th:text="${recentSession.addedMinutes}"></span> minutes
+                    </p>
                 </div>
                 <div class="flex items-center gap-3">
                     <span data-session-status th:if="${recentSession.inProgress}" class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">In progress</span>
                     <span data-session-status th:unless="${recentSession.inProgress}" class="rounded-full bg-rose-100 px-3 py-1 text-sm font-medium text-rose-800">Completed</span>
                     <span data-session-timer th:if="${recentSession.inProgress}" class="min-w-16 text-right font-mono text-lg font-semibold tabular-nums text-slate-700" th:attr="aria-label=${'Time remaining for ' + recentSession.session.student.name}">--:--</span>
+                    <form th:if="${recentSession.inProgress and recentSession.today}" method="post"
+                          th:action="@{/tutor/sessions/{id}/add-time(id=${recentSession.session.id})}"
+                          class="flex items-center gap-2">
+                        <label class="sr-only" th:for="${'minutes-' + recentSession.session.id}">Minutes to add</label>
+                        <input type="number" name="minutes" min="1" max="480" value="5" required
+                               th:id="${'minutes-' + recentSession.session.id}"
+                               class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+                        <button class="rounded-lg bg-cyan-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-cyan-800">Add minutes</button>
+                    </form>
                 </div>
             </article>
         </div>

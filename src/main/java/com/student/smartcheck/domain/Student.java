@@ -53,6 +53,9 @@ public class Student {
     public String getGenmoji() { return gender == Gender.FEMALE ? "👧" : "👦"; }
     public boolean isArchived() { return archived; }
     public Set<Tutor> getTutors() { return tutors; }
+    public boolean hasTutor(Tutor tutor) {
+        return tutors.stream().anyMatch(assignedTutor -> assignedTutor.getId().equals(tutor.getId()));
+    }
 
     public void update(String name, int sessionMinutes, Gender gender, Set<Tutor> tutors) {
         this.name = name;

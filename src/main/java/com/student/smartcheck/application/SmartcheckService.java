@@ -8,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,6 +43,15 @@ public class SmartcheckService {
     @Transactional(readOnly = true)
     public Page<Student> students(Pageable pageable) {
         Page<Student> page = students.findAllByArchivedFalse(pageable);
+        for (Student student : page) {
+            student.getTutors().size();
+        }
+        return page;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Student> students(String name, Pageable pageable) {
+        Page<Student> page = students.findByArchivedFalseAndNameContainingIgnoreCase(name, pageable);
         for (Student student : page) {
             student.getTutors().size();
         }
@@ -112,8 +123,24 @@ public class SmartcheckService {
         if (student.isArchived()) {
             throw new IllegalArgumentException("Student has already been deleted.");
         }
-        sessions.findFirstByStudentIdAndActiveTrue(studentId).ifPresent(TrackingSession::complete);
+        sessions.findFirstByStudentIdAndActiveTrue(studentId)
+                .ifPresent(session -> session.complete(Instant.now()));
         student.archive();
+    }
+
+    @Transactional
+    public void addSessionMinutes(Long sessionId, int minutes) {
+        if (minutes < 1 || minutes > 480) {
+            throw new IllegalArgumentException("Additional time must be between 1 and 480 minutes.");
+        }
+        TrackingSession session = sessions.findWithStudentById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Session was not found."));
+        Instant now = Instant.now();
+        if (!session.isActive() || !session.getEndsAt().isAfter(now)
+                || !session.getStartedAt().atZone(ZoneId.systemDefault()).toLocalDate().equals(LocalDate.now())) {
+            throw new IllegalArgumentException("Additional time can only be added to an active session started today.");
+        }
+        session.addMinutes(minutes);
     }
 
     @Transactional

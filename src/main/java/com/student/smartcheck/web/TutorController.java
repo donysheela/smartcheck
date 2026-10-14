@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Set;
 
 @Controller
@@ -50,16 +51,39 @@ public class TutorController {
     }
 
     @GetMapping("/students")
-    public String students(@RequestParam(defaultValue = "0") int page, Model model) {
-        Sort studentSort = Sort.by(Sort.Direction.ASC, "name").and(Sort.by(Sort.Direction.ASC, "id"));
-        Page<Student> studentPage = service.students(
-                PageRequest.of(Math.max(0, page), PAGE_SIZE, studentSort));
+    public String students(@RequestParam(defaultValue = "0") int page,
+                           @RequestParam(defaultValue = "") String name,
+                           @RequestParam(defaultValue = "asc") String sort,
+                           @RequestParam(defaultValue = "cards") String view,
+                           Model model) {
+        Sort.Direction direction;
+        if ("asc".equalsIgnoreCase(sort)) {
+            direction = Sort.Direction.ASC;
+        } else if ("desc".equalsIgnoreCase(sort)) {
+            direction = Sort.Direction.DESC;
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sort must be asc or desc.");
+        }
+        if (!"cards".equals(view) && !"table".equals(view)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "View must be cards or table.");
+        }
+        String searchName = name.trim();
+        Sort studentSort = Sort.by(direction, "name").and(Sort.by(Sort.Direction.ASC, "id"));
+        PageRequest pageRequest = PageRequest.of(Math.max(0, page), PAGE_SIZE, studentSort);
+        Page<Student> studentPage = searchName.isEmpty()
+                ? service.students(pageRequest)
+                : service.students(searchName, pageRequest);
         if (studentPage.getTotalPages() > 0 && studentPage.getNumber() >= studentPage.getTotalPages()) {
-            studentPage = service.students(PageRequest.of(studentPage.getTotalPages() - 1, PAGE_SIZE,
-                    studentSort));
+            pageRequest = PageRequest.of(studentPage.getTotalPages() - 1, PAGE_SIZE, studentSort);
+            studentPage = searchName.isEmpty()
+                    ? service.students(pageRequest)
+                    : service.students(searchName, pageRequest);
         }
         model.addAttribute("students", studentPage);
         model.addAttribute("tutors", service.tutors());
+        model.addAttribute("name", searchName);
+        model.addAttribute("sort", sort.toLowerCase());
+        model.addAttribute("view", view);
         return "tutor-students";
     }
 
@@ -73,7 +97,8 @@ public class TutorController {
                     PageRequest.of(sessionPage.getTotalPages() - 1, PAGE_SIZE, sessionSort));
         }
         Instant now = Instant.now();
-        model.addAttribute("sessions", sessionPage.map(session -> sessionDisplay(session, now)));
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        model.addAttribute("sessions", sessionPage.map(session -> sessionDisplay(session, now, today)));
         return "tutor-sessions";
     }
 
@@ -111,20 +136,23 @@ public class TutorController {
             header.createCell(0).setCellValue("Student");
             header.createCell(1).setCellValue("Gender");
             header.createCell(2).setCellValue("Started");
-            header.createCell(3).setCellValue("Scheduled end");
+            header.createCell(3).setCellValue("Ended");
             header.createCell(4).setCellValue("Session length (minutes)");
-            header.createCell(5).setCellValue("Status");
+            header.createCell(5).setCellValue("Added time (minutes)");
+            header.createCell(6).setCellValue("Status");
             for (int i = 0; i < report.sessions().size(); i++) {
                 TrackingSession session = report.sessions().get(i);
                 Row row = sessionSheet.createRow(i + 1);
                 row.createCell(0).setCellValue(session.getStudent().getName());
                 row.createCell(1).setCellValue(session.getStudent().getGender().toString());
                 row.createCell(2).setCellValue(DateTimeDisplay.format(session.getStartedAt()));
-                row.createCell(3).setCellValue(DateTimeDisplay.format(session.getEndsAt()));
-                row.createCell(4).setCellValue(session.getStudent().getSessionMinutes());
-                row.createCell(5).setCellValue(session.isActive() ? "In progress" : "Completed");
+                row.createCell(3).setCellValue(DateTimeDisplay.format(sessionEnd(session)));
+                row.createCell(4).setCellValue(
+                        Duration.between(session.getStartedAt(), sessionEnd(session)).toMinutes());
+                row.createCell(5).setCellValue(session.getAddedMinutes());
+                row.createCell(6).setCellValue(session.isActive() ? "In progress" : "Completed");
             }
-            for (int column = 0; column < 6; column++) {
+            for (int column = 0; column < 7; column++) {
                 sessionSheet.autoSizeColumn(column);
             }
             workbook.write(output);
@@ -172,7 +200,7 @@ public class TutorController {
         model.addAttribute("rangeLabel", report.rangeLabel());
         Instant now = Instant.now();
         model.addAttribute("sessions", report.sessions().stream()
-                .map(session -> sessionDisplay(session, now)).toList());
+                .map(session -> sessionDisplay(session, now, report.today())).toList());
         model.addAttribute("sessionCount", report.sessions().size());
         model.addAttribute("completedCount", report.completedCount());
         model.addAttribute("participatingStudentCount", report.participatingStudentCount());
@@ -190,10 +218,18 @@ public class TutorController {
         row.createCell(1).setCellValue(value);
     }
 
-    private SessionDisplay sessionDisplay(TrackingSession session, Instant now) {
+    private SessionDisplay sessionDisplay(TrackingSession session, Instant now, LocalDate today) {
         return new SessionDisplay(session, DateTimeDisplay.format(session.getStartedAt()),
                 session.isActive() && session.getEndsAt().isAfter(now),
-                session.getEndsAt().toEpochMilli(), session.getStartedAt().toEpochMilli());
+                session.isActive() && session.getEndsAt().isAfter(now) ? "" : DateTimeDisplay.format(sessionEnd(session)),
+                Duration.between(session.getStartedAt(), sessionEnd(session)).toMinutes(),
+                session.getAddedMinutes(),
+                session.getEndsAt().toEpochMilli(), session.getStartedAt().toEpochMilli(),
+                session.getStartedAt().atZone(ZoneId.systemDefault()).toLocalDate().equals(today));
+    }
+
+    private Instant sessionEnd(TrackingSession session) {
+        return session.getCompletedAt() == null ? session.getEndsAt() : session.getCompletedAt();
     }
 
     private record ReportData(LocalDate today, LocalDate fromDate, LocalDate toDate,
@@ -203,7 +239,8 @@ public class TutorController {
     }
 
     private record SessionDisplay(TrackingSession session, String startedAt, boolean inProgress,
-                                  long endsAtMillis, long startedAtMillis) {
+                                  String completedAt, long sessionMinutes, int addedMinutes,
+                                  long endsAtMillis, long startedAtMillis, boolean today) {
     }
 
     @PostMapping("/tutors")
@@ -230,10 +267,11 @@ public class TutorController {
         try {
             service.addStudent(name, sessionMinutes, gender, tutorIds);
             redirect.addFlashAttribute("success", "Student added.");
+            return "redirect:/tutor/students";
         } catch (IllegalArgumentException exception) {
             redirect.addFlashAttribute("error", exception.getMessage());
+            return "redirect:/tutor";
         }
-        return "redirect:/tutor/students";
     }
 
     @PostMapping("/students/{studentId}")
@@ -260,6 +298,18 @@ public class TutorController {
             redirect.addFlashAttribute("error", exception.getMessage());
         }
         return "redirect:/tutor/students";
+    }
+
+    @PostMapping("/sessions/{sessionId}/add-time")
+    public String addSessionTime(@PathVariable Long sessionId, @RequestParam int minutes,
+                                 RedirectAttributes redirect) {
+        try {
+            service.addSessionMinutes(sessionId, minutes);
+            redirect.addFlashAttribute("success", "Session extended by " + minutes + " minutes.");
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/tutor/sessions";
     }
 
     @PostMapping("/tutors/{tutorId}/delete")

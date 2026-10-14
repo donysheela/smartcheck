@@ -40,7 +40,7 @@ public class ReminderService {
             Instant now = Instant.now();
             sessions.findByActiveTrue().stream()
                     .filter(session -> !now.isBefore(session.getEndsAt()))
-                    .forEach(TrackingSession::complete);
+                    .forEach(session -> session.complete(now));
             return;
         }
         Instant now = Instant.now();
@@ -57,20 +57,20 @@ public class ReminderService {
                         && !now.isBefore(session.getEndsAt())) {
                     send(session, "Session time reached",
                             session.getStudent().getName() + "'s configured session time has ended.");
-                    session.markFinalAlertSent();
+                    session.markFinalAlertSent(now);
                 }
             } catch (MailException exception) {
                 log.error("Could not send a session alert for session {}", session.getId(), exception);
             }
             if (!now.isBefore(session.getEndsAt())) {
-                session.complete();
+                session.complete(now);
             }
         }
         for (TrackingSession session : sessions.findByAlertsEnabledTrueAndFinalAlertSentFalseAndEndsAtLessThanEqual(now)) {
             try {
                 send(session, "Session time reached",
                         session.getStudent().getName() + "'s configured session time has ended.");
-                session.markFinalAlertSent();
+                session.markFinalAlertSent(now);
             } catch (MailException exception) {
                 log.error("Could not send the final session alert for session {}", session.getId(), exception);
             }

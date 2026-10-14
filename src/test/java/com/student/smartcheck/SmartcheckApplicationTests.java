@@ -13,6 +13,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,6 +94,7 @@ class SmartcheckApplicationTests {
 
         var student = service.searchStudents("jordan").get(0);
         var session = service.startSession(student.getId());
+        Instant originallyScheduledEnd = service.session(session.getId()).getEndsAt();
 
         assertThat(session.getEndsAt()).isAfter(session.getStartedAt());
         assertThat(session.getStudent().getSessionMinutes()).isEqualTo(45);
@@ -101,6 +103,17 @@ class SmartcheckApplicationTests {
         assertThat(service.activeSessionCount()).isEqualTo(1);
 
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> extendResponse = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions/" + session.getId()
+                                + "/add-time?minutes=15"))
+                        .POST(HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(extendResponse.statusCode()).isBetween(300, 399);
+        var extendedSession = service.session(session.getId());
+        assertThat(extendedSession.getEndsAt()).isEqualTo(originallyScheduledEnd.plusSeconds(15 * 60L));
+        assertThat(extendedSession.getAddedMinutes()).isEqualTo(15);
+
         HttpResponse<byte[]> export = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/reports/export?fromDate="
                         + LocalDate.now() + "&toDate=" + LocalDate.now())).GET().build(),
@@ -114,10 +127,10 @@ class SmartcheckApplicationTests {
                     .containsPattern("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}");
             assertThat(sessionRow.getCell(3).getStringCellValue())
                     .containsPattern("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}");
+            assertThat(sessionRow.getCell(5).getNumericCellValue()).isEqualTo(15);
         }
 
         String timestampPattern = "\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}";
-        HttpClient client = HttpClient.newHttpClient();
         HttpResponse<String> tutorPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -130,8 +143,9 @@ class SmartcheckApplicationTests {
                         + LocalDate.now() + "&toDate=" + LocalDate.now())).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(sessionsPage.body()).containsPattern(timestampPattern)
-                .contains("data-session-timer", "In progress", "data-in-progress=\"true\"");
+                .contains("data-session-timer", "In progress", "data-in-progress=\"true\"", "Add minutes");
         assertThat(reportsPage.body()).containsPattern(timestampPattern);
+        assertThat(reportsPage.body()).contains("Ended", "Length (min)", "Added (min)", "15");
 
         HttpResponse<String> studentPage = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/student?query=Jordan%20Student&session=" + session.getId()))
@@ -169,6 +183,18 @@ class SmartcheckApplicationTests {
                         "Page <span>2</span> of <span>2</span>")
                 .doesNotContain("Paging Student 19");
 
+        HttpResponse<String> sortedStudents = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl
+                        + "/tutor/students?name=Paging%20Student&sort=desc&view=table")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(sortedStudents.statusCode()).isBetween(200, 299);
+        assertThat(sortedStudents.body()).contains("data-student-results=\"table\"",
+                        "data-student-view=\"table\"", "Sort by name", "Search by name",
+                        "Paging Student 20", "Page <span>1</span> of <span>2</span>")
+                .doesNotContain("Paging Student 00");
+        assertThat(sortedStudents.body().indexOf("Paging Student 20"))
+                .isLessThan(sortedStudents.body().indexOf("Paging Student 19"));
+
         HttpResponse<String> firstSessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -199,13 +225,14 @@ class SmartcheckApplicationTests {
         assertThat(service.searchStudents("Casey")).isEmpty();
         assertThat(service.studentCount()).isEqualTo(service.students().size());
         assertThat(service.session(session.getId()).getStudent().getName()).isEqualTo("Casey Student");
+        assertThat(service.session(session.getId()).getCompletedAt()).isNotNull();
         assertThat(service.activeSessionCount()).isZero();
 
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpResponse<String> sessionsPage = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(sessionsPage.body()).contains("Casey Student", "bg-rose-50", "Completed");
+        assertThat(sessionsPage.body()).contains("Casey Student", "bg-rose-50", "Completed", "Ended");
     }
 
     @Test
@@ -246,6 +273,46 @@ class SmartcheckApplicationTests {
         assertThat(updatedStudent.getSessionMinutes()).isEqualTo(60);
         assertThat(updatedStudent.getGender()).isEqualTo(Gender.MALE);
         assertThat(updatedStudent.getTutors()).extracting("id").containsExactly(replacementTutorId);
+    }
+
+    @Test
+    void editingStudentChecksItsAssignedTutor() throws Exception {
+        service.addTutor("Assigned Tutor", "assigned@example.test", Gender.FEMALE);
+        Long tutorId = service.tutors().stream()
+                .filter(tutor -> tutor.getEmail().equals("assigned@example.test"))
+                .findFirst().orElseThrow().getId();
+        service.addStudent("Assigned Student", 45, Gender.FEMALE, java.util.Set.of(tutorId));
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.body()).containsPattern(
+                "name=\"tutorIds\" value=\"" + tutorId + "\"[^>]*checked=\"checked\"");
+    }
+
+    @Test
+    void addingStudentWithoutTutorReturnsToTutorDashboardWithError() throws Exception {
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> response = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students"))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .POST(HttpRequest.BodyPublishers.ofString(
+                                "name=No+Tutor+Student&sessionMinutes=45&gender=FEMALE"))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isBetween(300, 399);
+        String location = response.headers().firstValue("Location").orElseThrow();
+        assertThat(location).startsWith(baseUrl + "/tutor");
+        HttpResponse<String> dashboard = client.send(
+                HttpRequest.newBuilder(URI.create(location)).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(dashboard.statusCode()).isBetween(200, 299);
+        assertThat(dashboard.body()).contains("Select at least one tutor to receive alerts.");
     }
 
     @Test

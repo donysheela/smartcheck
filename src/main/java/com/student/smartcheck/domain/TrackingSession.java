@@ -22,6 +22,10 @@ public class TrackingSession {
     @Column(nullable = false)
     private Instant endsAt;
 
+    private Instant completedAt;
+
+    private Integer addedMinutes = 0;
+
     @Column(nullable = false)
     private boolean active = true;
 
@@ -48,15 +52,26 @@ public class TrackingSession {
     public Student getStudent() { return student; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getEndsAt() { return endsAt; }
+    public Instant getCompletedAt() { return completedAt; }
+    public int getAddedMinutes() { return addedMinutes == null ? 0 : addedMinutes; }
     public boolean isActive() { return active; }
     public boolean isTenMinuteReminderSent() { return tenMinuteReminderSent; }
     public boolean isFinalAlertSent() { return finalAlertSent; }
     public boolean isAlertsEnabled() { return alertsEnabled; }
 
     public void markTenMinuteReminderSent() { tenMinuteReminderSent = true; }
-    public void markFinalAlertSent() {
+    public void markFinalAlertSent(Instant completedAt) {
         finalAlertSent = true;
-        active = false;
+        complete(completedAt);
     }
-    public void complete() { active = false; }
+    public void addMinutes(int minutes) {
+        endsAt = endsAt.plusSeconds(minutes * 60L);
+        addedMinutes = getAddedMinutes() + minutes;
+    }
+    public void complete(Instant completedAt) {
+        if (active) {
+            active = false;
+            this.completedAt = completedAt;
+        }
+    }
 }

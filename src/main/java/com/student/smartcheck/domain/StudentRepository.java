@@ -13,6 +13,7 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     @EntityGraph(attributePaths = "tutors")
     List<Student> findAllByArchivedFalseOrderByNameAsc();
     Page<Student> findAllByArchivedFalse(Pageable pageable);
+    Page<Student> findByArchivedFalseAndNameContainingIgnoreCase(String name, Pageable pageable);
     @EntityGraph(attributePaths = "tutors")
     List<Student> findByTutors_Id(Long tutorId);
     long countByArchivedFalse();
