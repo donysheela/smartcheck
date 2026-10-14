@@ -19,6 +19,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -30,6 +33,7 @@ import java.util.Set;
 @Controller
 @RequestMapping("/tutor")
 public class TutorController {
+    private static final int PAGE_SIZE = 20;
     private final SmartcheckService service;
 
     public TutorController(SmartcheckService service) {
@@ -39,10 +43,38 @@ public class TutorController {
     @GetMapping
     public String dashboard(Model model) {
         model.addAttribute("tutors", service.tutors());
-        model.addAttribute("students", service.students());
-        model.addAttribute("sessions", service.recentSessions().stream().map(this::sessionDisplay).toList());
         model.addAttribute("activeCount", service.activeSessionCount());
+        model.addAttribute("studentCount", service.studentCount());
+        model.addAttribute("totalSessionCount", service.totalSessionCount());
         return "tutor";
+    }
+
+    @GetMapping("/students")
+    public String students(@RequestParam(defaultValue = "0") int page, Model model) {
+        Sort studentSort = Sort.by(Sort.Direction.ASC, "name").and(Sort.by(Sort.Direction.ASC, "id"));
+        Page<Student> studentPage = service.students(
+                PageRequest.of(Math.max(0, page), PAGE_SIZE, studentSort));
+        if (studentPage.getTotalPages() > 0 && studentPage.getNumber() >= studentPage.getTotalPages()) {
+            studentPage = service.students(PageRequest.of(studentPage.getTotalPages() - 1, PAGE_SIZE,
+                    studentSort));
+        }
+        model.addAttribute("students", studentPage);
+        model.addAttribute("tutors", service.tutors());
+        return "tutor-students";
+    }
+
+    @GetMapping("/sessions")
+    public String sessions(@RequestParam(defaultValue = "0") int page, Model model) {
+        Sort sessionSort = Sort.by(Sort.Direction.DESC, "startedAt").and(Sort.by(Sort.Direction.DESC, "id"));
+        Page<TrackingSession> sessionPage = service.sessions(
+                PageRequest.of(Math.max(0, page), PAGE_SIZE, sessionSort));
+        if (sessionPage.getTotalPages() > 0 && sessionPage.getNumber() >= sessionPage.getTotalPages()) {
+            sessionPage = service.sessions(
+                    PageRequest.of(sessionPage.getTotalPages() - 1, PAGE_SIZE, sessionSort));
+        }
+        Instant now = Instant.now();
+        model.addAttribute("sessions", sessionPage.map(session -> sessionDisplay(session, now)));
+        return "tutor-sessions";
     }
 
     @GetMapping("/reports")
@@ -138,7 +170,9 @@ public class TutorController {
         model.addAttribute("fromDate", report.fromDate());
         model.addAttribute("toDate", report.toDate());
         model.addAttribute("rangeLabel", report.rangeLabel());
-        model.addAttribute("sessions", report.sessions().stream().map(this::sessionDisplay).toList());
+        Instant now = Instant.now();
+        model.addAttribute("sessions", report.sessions().stream()
+                .map(session -> sessionDisplay(session, now)).toList());
         model.addAttribute("sessionCount", report.sessions().size());
         model.addAttribute("completedCount", report.completedCount());
         model.addAttribute("participatingStudentCount", report.participatingStudentCount());
@@ -156,8 +190,10 @@ public class TutorController {
         row.createCell(1).setCellValue(value);
     }
 
-    private SessionDisplay sessionDisplay(TrackingSession session) {
-        return new SessionDisplay(session, DateTimeDisplay.format(session.getStartedAt()));
+    private SessionDisplay sessionDisplay(TrackingSession session, Instant now) {
+        return new SessionDisplay(session, DateTimeDisplay.format(session.getStartedAt()),
+                session.isActive() && session.getEndsAt().isAfter(now),
+                session.getEndsAt().toEpochMilli(), session.getStartedAt().toEpochMilli());
     }
 
     private record ReportData(LocalDate today, LocalDate fromDate, LocalDate toDate,
@@ -166,7 +202,8 @@ public class TutorController {
                               long participatingStudentCount) {
     }
 
-    private record SessionDisplay(TrackingSession session, String startedAt) {
+    private record SessionDisplay(TrackingSession session, String startedAt, boolean inProgress,
+                                  long endsAtMillis, long startedAtMillis) {
     }
 
     @PostMapping("/tutors")
@@ -196,7 +233,7 @@ public class TutorController {
         } catch (IllegalArgumentException exception) {
             redirect.addFlashAttribute("error", exception.getMessage());
         }
-        return "redirect:/tutor";
+        return "redirect:/tutor/students";
     }
 
     @PostMapping("/students/{studentId}")
@@ -210,7 +247,7 @@ public class TutorController {
         } catch (IllegalArgumentException exception) {
             redirect.addFlashAttribute("error", exception.getMessage());
         }
-        return "redirect:/tutor";
+        return "redirect:/tutor/students";
     }
 
     @PostMapping("/students/{studentId}/delete")
@@ -222,7 +259,7 @@ public class TutorController {
         } catch (IllegalArgumentException exception) {
             redirect.addFlashAttribute("error", exception.getMessage());
         }
-        return "redirect:/tutor";
+        return "redirect:/tutor/students";
     }
 
     @PostMapping("/tutors/{tutorId}/delete")

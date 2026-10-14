@@ -4,6 +4,8 @@ import com.student.smartcheck.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,6 +36,15 @@ public class SmartcheckService {
     @Transactional(readOnly = true)
     public List<Student> students() {
         return students.findAllByArchivedFalseOrderByNameAsc();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Student> students(Pageable pageable) {
+        Page<Student> page = students.findAllByArchivedFalse(pageable);
+        for (Student student : page) {
+            student.getTutors().size();
+        }
+        return page;
     }
 
     @Transactional(readOnly = true)
@@ -131,8 +142,8 @@ public class SmartcheckService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrackingSession> recentSessions() {
-        return sessions.findTop20ByOrderByStartedAtDesc();
+    public Page<TrackingSession> sessions(Pageable pageable) {
+        return sessions.findAllForTutorSessions(pageable);
     }
 
     @Transactional(readOnly = true)
@@ -143,6 +154,11 @@ public class SmartcheckService {
     @Transactional(readOnly = true)
     public long studentCount() {
         return students.countByArchivedFalse();
+    }
+
+    @Transactional(readOnly = true)
+    public long totalSessionCount() {
+        return sessions.count();
     }
 
     @Transactional(readOnly = true)

@@ -6,6 +6,7 @@ import com.student.smartcheck.domain.Gender;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 
 import java.net.URI;
@@ -46,7 +47,18 @@ class SmartcheckApplicationTests {
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(tutorPage.statusCode()).isBetween(200, 299);
-        assertThat(tutorPage.body()).contains("name=\"gender\"", "value=\"FEMALE\"", "value=\"MALE\"");
+        assertThat(tutorPage.body()).contains("name=\"gender\"", "value=\"FEMALE\"", "value=\"MALE\"",
+                "href=\"/tutor/students\"", "href=\"/tutor/sessions\"");
+        HttpResponse<String> studentsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(studentsPage.statusCode()).isBetween(200, 299);
+        assertThat(studentsPage.body()).contains("Students");
+        HttpResponse<String> sessionsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(sessionsPage.statusCode()).isBetween(200, 299);
+        assertThat(sessionsPage.body()).contains("Recent sessions");
         assertThat(getStatus(client, baseUrl + "/tutor/reports")).isBetween(200, 299);
         HttpResponse<byte[]> export = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/reports/export")).GET().build(),
@@ -109,11 +121,16 @@ class SmartcheckApplicationTests {
         HttpResponse<String> tutorPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
+        assertThat(tutorPage.body()).contains(">Total students</span>", ">Total sessions</span>");
+        HttpResponse<String> sessionsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
         HttpResponse<String> reportsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/reports?fromDate="
                         + LocalDate.now() + "&toDate=" + LocalDate.now())).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(tutorPage.body()).containsPattern(timestampPattern);
+        assertThat(sessionsPage.body()).containsPattern(timestampPattern)
+                .contains("data-session-timer", "In progress", "data-in-progress=\"true\"");
         assertThat(reportsPage.body()).containsPattern(timestampPattern);
 
         HttpResponse<String> studentPage = HttpClient.newHttpClient().send(
@@ -124,7 +141,52 @@ class SmartcheckApplicationTests {
     }
 
     @Test
-    void deletingStudentKeepsSessionHistoryAndRemovesStudentFromActiveViews() {
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void paginatesStudentsAndSessionsTwentyPerPage() throws Exception {
+        service.addTutor("Pagination Tutor", "pagination@example.test", Gender.FEMALE);
+        Long tutorId = service.tutors().stream()
+                .filter(item -> item.getEmail().equals("pagination@example.test"))
+                .findFirst().orElseThrow().getId();
+        for (int i = 0; i < 21; i++) {
+            service.addStudent("Paging Student %02d".formatted(i), 45, Gender.MALE,
+                    java.util.Set.of(tutorId));
+            Long studentId = service.searchStudents("Paging Student %02d".formatted(i)).get(0).getId();
+            service.startSession(studentId);
+        }
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> firstStudentsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> secondStudentsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students?page=1")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(firstStudentsPage.body()).contains("Paging Student 00", "Paging Student 19",
+                        "Page <span>1</span> of <span>2</span>")
+                .doesNotContain("Paging Student 20");
+        assertThat(secondStudentsPage.body()).contains("Paging Student 20",
+                        "Page <span>2</span> of <span>2</span>")
+                .doesNotContain("Paging Student 19");
+
+        HttpResponse<String> firstSessionsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> secondSessionsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions?page=1")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(firstSessionsPage.body()).contains("Paging Student 00", "Paging Student 19",
+                        "Page <span>1</span> of <span>2</span>")
+                .doesNotContain("Paging Student 20");
+        assertThat(firstSessionsPage.body().indexOf("Paging Student 00"))
+                .isLessThan(firstSessionsPage.body().indexOf("Paging Student 19"));
+        assertThat(secondSessionsPage.body()).contains("Paging Student 20",
+                        "Page <span>2</span> of <span>2</span>")
+                .doesNotContain("Paging Student 19");
+    }
+
+    @Test
+    void deletingStudentKeepsSessionHistoryAndRemovesStudentFromActiveViews() throws Exception {
         service.addTutor("Casey Tutor", "casey@example.test", Gender.FEMALE);
         Long tutorId = service.tutors().get(0).getId();
         service.addStudent("Casey Student", 45, Gender.FEMALE, java.util.Set.of(tutorId));
@@ -138,6 +200,12 @@ class SmartcheckApplicationTests {
         assertThat(service.studentCount()).isEqualTo(service.students().size());
         assertThat(service.session(session.getId()).getStudent().getName()).isEqualTo("Casey Student");
         assertThat(service.activeSessionCount()).isZero();
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpResponse<String> sessionsPage = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(sessionsPage.body()).contains("Casey Student", "bg-rose-50", "Completed");
     }
 
     @Test
