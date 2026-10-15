@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -190,8 +192,33 @@ public class SmartcheckService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrackingSession> completedSessionsSince(Instant completedAt) {
-        return sessions.findByActiveFalseAndCompletedAtGreaterThanEqualOrderByCompletedAtAsc(completedAt);
+    public List<TrackingSession> completedSessionsToday(Instant now) {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate today = now.atZone(zone).toLocalDate();
+        Instant start = today.atStartOfDay(zone).toInstant();
+        Instant end = today.plusDays(1).atStartOfDay(zone).toInstant();
+        List<TrackingSession> completed = new ArrayList<>(
+                sessions.findByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtAsc(
+                        start, end));
+        sessions.findByActiveTrue().stream()
+                .filter(session -> !session.getEndsAt().isAfter(now)
+                        && !session.getEndsAt().isBefore(start))
+                .forEach(completed::add);
+        completed.sort(Comparator.comparing(session ->
+                session.getCompletedAt() == null ? session.getEndsAt() : session.getCompletedAt()));
+        return completed;
+    }
+
+    @Transactional(readOnly = true)
+    public long completedSessionCountToday() {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate today = LocalDate.now(zone);
+        Instant start = today.atStartOfDay(zone).toInstant();
+        Instant end = today.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant now = Instant.now();
+        return sessions.countByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(start, end)
+                + sessions.countByActiveTrueAndEndsAtGreaterThanEqualAndEndsAtLessThanEqual(
+                        start, now.isBefore(end) ? now : end.minusNanos(1));
     }
 
     @Transactional(readOnly = true)

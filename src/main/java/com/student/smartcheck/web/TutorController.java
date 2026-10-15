@@ -43,6 +43,12 @@ public class TutorController {
 
     @ModelAttribute("completionPollSince")
     public long completionPollSince() {
+        ZoneId zone = ZoneId.systemDefault();
+        return LocalDate.now(zone).atStartOfDay(zone).toInstant().toEpochMilli();
+    }
+
+    @ModelAttribute("completionPageOpenedAt")
+    public long completionPageOpenedAt() {
         return Instant.now().toEpochMilli();
     }
 
@@ -50,7 +56,7 @@ public class TutorController {
     public String dashboard(Model model) {
         model.addAttribute("tutors", service.tutors());
         model.addAttribute("studentCount", service.studentCount());
-        model.addAttribute("totalSessionCount", service.totalSessionCount());
+        model.addAttribute("completedSessionCountToday", service.completedSessionCountToday());
         return "tutor";
     }
 

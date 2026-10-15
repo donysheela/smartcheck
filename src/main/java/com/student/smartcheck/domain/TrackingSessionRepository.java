@@ -14,7 +14,12 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
     @EntityGraph(attributePaths = {"student", "student.tutors"})
     List<TrackingSession> findByActiveTrue();
     @EntityGraph(attributePaths = "student")
-    List<TrackingSession> findByActiveFalseAndCompletedAtGreaterThanEqualOrderByCompletedAtAsc(Instant completedAt);
+    List<TrackingSession> findByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtAsc(
+            Instant start, Instant end);
+    long countByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+            Instant start, Instant end);
+    long countByActiveTrueAndEndsAtGreaterThanEqualAndEndsAtLessThanEqual(
+            Instant start, Instant end);
     long countByActiveTrueAndEndsAtAfter(Instant now);
     @EntityGraph(attributePaths = {"student", "student.tutors"})
     List<TrackingSession> findByAlertsEnabledTrueAndFinalAlertSentFalseAndEndsAtLessThanEqual(Instant endsAt);

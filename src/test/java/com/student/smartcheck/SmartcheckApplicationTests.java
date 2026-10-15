@@ -3,11 +3,13 @@ package com.student.smartcheck;
 import org.junit.jupiter.api.Test;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import com.student.smartcheck.domain.Gender;
+import com.student.smartcheck.domain.TrackingSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -35,6 +37,9 @@ class SmartcheckApplicationTests {
     @Autowired
     private com.student.smartcheck.application.SmartcheckService service;
 
+    @Autowired
+    private TrackingSessionRepository sessions;
+
     @Test
     void contextLoads() {
     }
@@ -54,7 +59,9 @@ class SmartcheckApplicationTests {
         assertThat(tutorPage.statusCode()).isBetween(200, 299);
         assertThat(tutorPage.body()).contains("name=\"gender\"", "value=\"FEMALE\"", "value=\"MALE\"",
                 "href=\"/tutor/students\"", "href=\"/tutor/sessions\"", "data-active-sessions",
-                "data-session-completions-url=\"/api/session-completions\"");
+                "data-session-completions-url=\"/api/session-completions\"",
+                "Completed sessions today")
+                .doesNotContain("Total sessions");
         HttpResponse<String> studentsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -120,19 +127,41 @@ class SmartcheckApplicationTests {
                 .findFirst().orElseThrow().getId();
         service.addStudent("Completion Alert Student", 45, Gender.MALE, java.util.Set.of(tutorId));
         Long studentId = service.searchStudents("Completion Alert Student").get(0).getId();
-        long since = Instant.now().minusSeconds(1).toEpochMilli();
         var session = service.startSession(studentId);
         service.stopSession(session.getId());
 
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpResponse<String> response = HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder(URI.create(baseUrl + "/api/session-completions?since=" + since))
+                HttpRequest.newBuilder(URI.create(baseUrl + "/api/session-completions"))
                         .GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.statusCode()).isBetween(200, 299);
         assertThat(response.body()).contains("\"studentName\":\"Completion Alert Student\"",
-                "\"checkedAt\":");
+                "\"todayCount\":1");
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void expiredActiveSessionIsIncludedAsCompletedImmediately() throws Exception {
+        service.addTutor("Instant Completion Tutor", "instant-completion@example.test", Gender.FEMALE);
+        Long tutorId = service.tutors().stream()
+                .filter(tutor -> tutor.getEmail().equals("instant-completion@example.test"))
+                .findFirst().orElseThrow().getId();
+        service.addStudent("Instant Completion Student", 45, Gender.MALE, java.util.Set.of(tutorId));
+        Long studentId = service.searchStudents("Instant Completion Student").get(0).getId();
+        var session = service.startSession(studentId);
+        ReflectionTestUtils.setField(session, "endsAt", Instant.now().minusSeconds(1));
+        sessions.save(session);
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/api/session-completions"))
+                        .GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.body()).contains("\"studentName\":\"Instant Completion Student\"",
+                "\"todayCount\":1");
     }
 
     private int getStatus(HttpClient client, String url) throws Exception {
@@ -192,7 +221,7 @@ class SmartcheckApplicationTests {
         HttpResponse<String> tutorPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(tutorPage.body()).contains(">Total students</span>", ">Total sessions</span>");
+        assertThat(tutorPage.body()).contains(">Total students</span>", "Completed sessions today");
         HttpResponse<String> sessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());

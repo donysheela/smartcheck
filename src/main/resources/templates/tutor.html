@@ -31,10 +31,11 @@
             <span class="text-sm text-slate-500">Total students</span>
             <p class="mt-2 text-3xl font-bold" th:text="${studentCount}">0</p>
         </a>
-        <a th:href="@{/tutor/sessions}" class="rounded-2xl bg-white p-5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-700">
-            <span class="text-sm text-slate-500">Total sessions</span>
-            <p class="mt-2 text-3xl font-bold" th:text="${totalSessionCount}">0</p>
-        </a>
+        <article class="rounded-2xl bg-white p-5 shadow-sm">
+            <span class="text-sm text-slate-500">Completed sessions today</span>
+            <p class="mt-2 text-3xl font-bold" data-today-completion-count
+               aria-live="polite" th:text="${completedSessionCountToday}">0</p>
+        </article>
     </section>
     <div th:if="${success}" class="mb-4 rounded-xl bg-emerald-100 px-4 py-3 text-emerald-900" th:text="${success}"></div>
     <div th:if="${error}" class="mb-4 rounded-xl bg-rose-100 px-4 py-3 text-rose-900" th:text="${error}"></div>
