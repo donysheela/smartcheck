@@ -62,6 +62,19 @@ class SmartcheckApplicationTests {
     }
 
     @Test
+    void rejectsDuplicateStudentAndTutorNamesIgnoringCase() {
+        service.addTutor("Case Check Tutor", "case-check@example.test", Gender.FEMALE);
+        service.addStudent("Case Check Student", 45, Gender.MALE, java.util.Set.of());
+
+        assertThatThrownBy(() -> service.addTutor("case check tutor", "another@example.test", Gender.MALE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tutor with this name already exists");
+        assertThatThrownBy(() -> service.addStudent("case check student", 45, Gender.FEMALE, java.util.Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("student with this name already exists");
+    }
+
+    @Test
     void rendersHomeTutorAndStudentPages() throws Exception {
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpClient client = HttpClient.newHttpClient();
@@ -317,10 +330,12 @@ class SmartcheckApplicationTests {
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpClient client = HttpClient.newHttpClient();
         HttpResponse<String> firstStudentsPage = client.send(
-                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
+                HttpRequest.newBuilder(URI.create(baseUrl
+                        + "/tutor/students?name=Paging%20Student")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         HttpResponse<String> secondStudentsPage = client.send(
-                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students?page=1")).GET().build(),
+                HttpRequest.newBuilder(URI.create(baseUrl
+                        + "/tutor/students?name=Paging%20Student&page=1")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(firstStudentsPage.body()).contains("Paging Student A", "Paging Student T",
                         "Page <span>1</span> of <span>2</span>")

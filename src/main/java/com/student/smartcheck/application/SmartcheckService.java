@@ -68,6 +68,9 @@ public class SmartcheckService {
     @Transactional
     public void addTutor(String name, String email, Gender gender) {
         validateName(name, "tutor");
+        if (tutors.existsByNameIgnoreCase(name.trim())) {
+            throw new IllegalArgumentException("A tutor with this name already exists.");
+        }
         if (gender == null) {
             throw new IllegalArgumentException("Select a tutor gender.");
         }
@@ -84,6 +87,9 @@ public class SmartcheckService {
     @Transactional
     public void addStudent(String name, int sessionMinutes, Gender gender, Set<Long> tutorIds) {
         validateStudentDetails(name, sessionMinutes, gender);
+        if (students.existsByNameIgnoreCase(name.trim())) {
+            throw new IllegalArgumentException("A student with this name already exists.");
+        }
         Set<Tutor> assignedTutors = findAssignedTutors(tutorIds);
         students.save(new Student(name.trim(), sessionMinutes, gender, assignedTutors));
     }
@@ -95,6 +101,9 @@ public class SmartcheckService {
                 .orElseThrow(() -> new IllegalArgumentException("Student was not found."));
         if (student.isArchived()) {
             throw new IllegalArgumentException("This student is no longer active.");
+        }
+        if (students.existsByNameIgnoreCaseAndIdNot(name.trim(), studentId)) {
+            throw new IllegalArgumentException("A student with this name already exists.");
         }
         student.update(name.trim(), sessionMinutes, gender, findAssignedTutors(tutorIds));
     }
