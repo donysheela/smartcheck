@@ -274,7 +274,12 @@ class SmartcheckApplicationTests {
         HttpResponse<String> sessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(sessionsPage.body()).contains("Stop Session Student", ">Stop</button>");
+        assertThat(sessionsPage.body()).contains("In-progress sessions", "Completed sessions",
+                "Start time", "End time", "Stop Session Student", ">Stop</button>");
+        assertThat(sessionsPage.body().indexOf("data-sessions-list=\"in-progress\""))
+                .isLessThan(sessionsPage.body().indexOf("Stop Session Student"));
+        assertThat(sessionsPage.body().indexOf("Stop Session Student"))
+                .isLessThan(sessionsPage.body().indexOf("data-sessions-list=\"completed\""));
 
         HttpResponse<String> stopResponse = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions/" + session.getId() + "/stop"))
@@ -289,8 +294,10 @@ class SmartcheckApplicationTests {
         HttpResponse<String> completedSessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(completedSessionsPage.body()).contains("Stop Session Student", "Completed", "Ended")
+        assertThat(completedSessionsPage.body()).contains("Stop Session Student", "Completed", "End time")
                 .doesNotContain(">Stop</button>");
+        assertThat(completedSessionsPage.body().indexOf("data-sessions-list=\"completed\""))
+                .isLessThan(completedSessionsPage.body().indexOf("Stop Session Student"));
     }
 
     @Test
@@ -371,7 +378,7 @@ class SmartcheckApplicationTests {
         HttpResponse<String> sessionsPage = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(sessionsPage.body()).contains("Casey Student", "bg-rose-50", "Completed", "Ended");
+        assertThat(sessionsPage.body()).contains("Casey Student", "bg-rose-50", "Completed", "End time");
     }
 
     @Test

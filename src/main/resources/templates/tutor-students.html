@@ -11,7 +11,7 @@
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <a th:href="@{/}" class="font-bold tracking-wide">SmartCheck</a>
         <div class="flex flex-wrap items-center justify-end gap-5">
-            <nav class="flex gap-5 text-sm text-slate-300">
+            <nav class="flex flex-wrap justify-end gap-x-4 gap-y-2 text-xs text-slate-300 sm:text-sm">
                 <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
                 <a th:href="@{/tutor/sessions}" class="hover:text-white">Recent sessions</a>
                 <a th:href="@{/tutor/reports}" class="hover:text-white">Reports</a>
@@ -130,7 +130,7 @@
             </div>
         </div>
 
-        <nav th:if="${students.totalPages > 1}" class="mt-6 flex items-center justify-between border-t border-slate-200 pt-4" aria-label="Student pages">
+        <nav th:if="${students.totalPages > 1}" class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-4" aria-label="Student pages">
             <a th:if="${students.hasPrevious()}"
                th:href="@{/tutor/students(page=${students.number - 1},name=${name},sort=${sort},view=${view})}"
                data-student-page-link class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50">Previous</a>

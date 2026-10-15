@@ -108,7 +108,12 @@ public class TutorController {
         }
         Instant now = Instant.now();
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
-        model.addAttribute("sessions", sessionPage.map(session -> sessionDisplay(session, now, today)));
+        Page<SessionDisplay> displays = sessionPage.map(session -> sessionDisplay(session, now, today));
+        model.addAttribute("sessions", displays);
+        model.addAttribute("inProgressSessions",
+                displays.getContent().stream().filter(SessionDisplay::inProgress).toList());
+        model.addAttribute("completedSessions",
+                displays.getContent().stream().filter(display -> !display.inProgress()).toList());
         return "tutor-sessions";
     }
 
@@ -233,7 +238,7 @@ public class TutorController {
                 session.isActive() && session.getEndsAt().isAfter(now),
                 session.isActive() && session.getEndsAt().isAfter(now) ? "" : DateTimeDisplay.format(sessionEnd(session)),
                 Duration.between(session.getStartedAt(), sessionEnd(session)).toMinutes(),
-                session.getAddedMinutes(),
+                session.getAddedMinutes(), DateTimeDisplay.format(sessionEnd(session)),
                 session.getEndsAt().toEpochMilli(), session.getStartedAt().toEpochMilli(),
                 session.getStartedAt().atZone(ZoneId.systemDefault()).toLocalDate().equals(today));
     }
@@ -249,7 +254,7 @@ public class TutorController {
     }
 
     private record SessionDisplay(TrackingSession session, String startedAt, boolean inProgress,
-                                  String completedAt, long sessionMinutes, int addedMinutes,
+                                  String completedAt, long sessionMinutes, int addedMinutes, String endAt,
                                   long endsAtMillis, long startedAtMillis, boolean today) {
     }
 

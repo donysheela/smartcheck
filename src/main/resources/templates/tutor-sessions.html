@@ -11,7 +11,7 @@
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <a th:href="@{/}" class="font-bold tracking-wide">SmartCheck</a>
         <div class="flex flex-wrap items-center justify-end gap-5">
-            <nav class="flex gap-5 text-sm text-slate-300">
+            <nav class="flex flex-wrap justify-end gap-x-4 gap-y-2 text-xs text-slate-300 sm:text-sm">
                 <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
                 <a th:href="@{/tutor/students}" class="hover:text-white">Students</a>
                 <a th:href="@{/tutor/reports}" class="hover:text-white">Reports</a>
@@ -26,48 +26,143 @@
         <div>
             <p class="text-sm font-semibold uppercase tracking-widest text-cyan-700">Tutor workspace</p>
             <h1 class="mt-1 text-3xl font-bold">Recent sessions</h1>
-            <p class="mt-2 text-slate-600">In-progress sessions are ordered by soonest completion. Completed sessions follow by date and time.</p>
+            <p class="mt-2 text-slate-600">Track active timers and review completed sessions.</p>
         </div>
         <a th:href="@{/tutor}" class="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">Back to dashboard</a>
     </div>
-    <section class="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
-        <div th:if="${success}" class="mb-4 rounded-xl bg-emerald-100 px-4 py-3 text-emerald-900" th:text="${success}"></div>
-        <div th:if="${error}" class="mb-4 rounded-xl bg-rose-100 px-4 py-3 text-rose-900" th:text="${error}"></div>
-        <div th:if="${sessions.totalElements == 0}" class="text-sm text-slate-500">Session activity will appear here.</div>
-        <div data-sessions-list class="space-y-3">
-            <article th:each="recentSession : ${sessions}"
-                     data-session-row
-                     th:attr="data-in-progress=${recentSession.inProgress},data-ends-at=${recentSession.endsAtMillis},data-started-at=${recentSession.startedAtMillis},data-session-id=${recentSession.session.id},data-student-name=${recentSession.session.student.name}"
-                     th:classappend="${recentSession.inProgress} ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50'"
-                     class="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-4">
-                <div>
-                    <p class="font-semibold"><span th:text="${recentSession.session.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.session.student.name}"></span></p>
-                    <p class="text-sm text-slate-500">Started <span th:text="${recentSession.startedAt}"></span></p>
-                    <p th:if="${!recentSession.inProgress}" class="text-sm text-slate-500">Ended <span th:text="${recentSession.completedAt}"></span></p>
-                    <p th:if="${recentSession.addedMinutes > 0}" class="text-sm text-slate-500">
-                        Added <span th:text="${recentSession.addedMinutes}"></span> minutes
-                    </p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span data-session-status th:if="${recentSession.inProgress}" class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">In progress</span>
-                    <span data-session-status th:unless="${recentSession.inProgress}" class="rounded-full bg-rose-100 px-3 py-1 text-sm font-medium text-rose-800">Completed</span>
-                    <span data-session-timer th:if="${recentSession.inProgress}" class="min-w-16 text-right font-mono text-lg font-semibold tabular-nums text-slate-700" th:attr="aria-label=${'Time remaining for ' + recentSession.session.student.name}">--:--</span>
-                    <form th:if="${recentSession.inProgress}" method="post"
-                          data-session-stop
-                          th:action="@{/tutor/sessions/{id}/stop(id=${recentSession.session.id})}">
-                        <button class="rounded-lg bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-800">Stop</button>
-                    </form>
-                    <form th:if="${recentSession.inProgress and recentSession.today}" method="post"
-                          th:action="@{/tutor/sessions/{id}/add-time(id=${recentSession.session.id})}"
-                          class="flex items-center gap-2">
-                        <label class="sr-only" th:for="${'minutes-' + recentSession.session.id}">Minutes to add</label>
-                        <input type="number" name="minutes" min="1" max="480" value="5" required
-                               th:id="${'minutes-' + recentSession.session.id}"
-                               class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
-                        <button class="rounded-lg bg-cyan-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-cyan-800">Add minutes</button>
-                    </form>
-                </div>
-            </article>
+    <div th:if="${success}" class="mb-4 rounded-xl bg-emerald-100 px-4 py-3 text-emerald-900" th:text="${success}"></div>
+    <div th:if="${error}" class="mb-4 rounded-xl bg-rose-100 px-4 py-3 text-rose-900" th:text="${error}"></div>
+
+    <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm sm:p-7" aria-labelledby="in-progress-heading">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 id="in-progress-heading" class="text-xl font-bold">In-progress sessions</h2>
+                <p class="mt-1 text-sm text-slate-500">Timers update automatically; sessions move to completed when time runs out.</p>
+            </div>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800"
+                  th:text="${#lists.size(inProgressSessions) + ' active'}">0 active</span>
+        </div>
+        <p data-empty-in-progress th:hidden="${!#lists.isEmpty(inProgressSessions)}" class="py-5 text-sm text-slate-500">There are no in-progress sessions.</p>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-left text-sm">
+                <thead class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 max-lg:hidden">
+                <tr>
+                    <th scope="col" class="px-3 py-3">Student</th>
+                    <th scope="col" class="px-3 py-3">Start time</th>
+                    <th scope="col" class="px-3 py-3">End time</th>
+                    <th scope="col" class="px-3 py-3">Length</th>
+                    <th scope="col" class="px-3 py-3">Added</th>
+                    <th scope="col" class="px-3 py-3">Status</th>
+                    <th scope="col" class="px-3 py-3">Actions</th>
+                </tr>
+                </thead>
+                <tbody data-sessions-list="in-progress" class="max-lg:grid max-lg:gap-3">
+                <tr th:each="recentSession : ${inProgressSessions}" data-session-row
+                    th:attr="data-in-progress=${recentSession.inProgress},data-ends-at=${recentSession.endsAtMillis},data-started-at=${recentSession.startedAtMillis},data-session-id=${recentSession.session.id},data-student-name=${recentSession.session.student.name}"
+                class="border-b border-slate-100 bg-emerald-50/50 align-top last:border-0 max-lg:block max-lg:rounded-xl max-lg:border max-lg:p-2">
+                <th scope="row" class="px-3 py-4 font-semibold max-lg:flex max-lg:items-center max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                        <span th:text="${recentSession.session.student.genmoji}" aria-hidden="true"></span>
+                        <span th:text="${recentSession.session.student.name}"></span>
+                    </th>
+                <td class="px-3 py-4 whitespace-nowrap text-slate-600 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Start time</span>
+                    <span th:text="${recentSession.startedAt}"></span>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap text-slate-600 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">End time</span>
+                    <span th:text="${recentSession.endAt}"></span>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Length</span>
+                    <span><span th:text="${recentSession.sessionMinutes}"></span> min</span>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Added</span>
+                    <span><span th:text="${recentSession.addedMinutes}"></span> min</span>
+                </td>
+                <td class="px-3 py-4 max-lg:flex max-lg:items-center max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Status</span>
+                    <span class="text-right">
+                        <span data-session-status class="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-800">In progress</span>
+                        <span data-session-timer class="mt-2 block font-mono font-semibold tabular-nums text-slate-700"
+                              th:attr="aria-label=${'Time remaining for ' + recentSession.session.student.name}">--:--</span>
+                    </span>
+                </td>
+                <td class="px-3 py-4 max-lg:flex max-lg:items-start max-lg:justify-between max-lg:gap-3 max-lg:px-2 max-lg:py-3">
+                    <span class="hidden pt-1 text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Actions</span>
+                    <div class="flex flex-wrap items-start gap-2">
+                            <form method="post" data-session-action
+                                  th:action="@{/tutor/sessions/{id}/stop(id=${recentSession.session.id})}">
+                                <button class="rounded-lg bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-800">Stop</button>
+                            </form>
+                            <form th:if="${recentSession.today}" method="post" data-session-action
+                                  th:action="@{/tutor/sessions/{id}/add-time(id=${recentSession.session.id})}"
+                                  class="flex items-center gap-2 max-lg:flex-col max-lg:items-end">
+                                <label class="sr-only" th:for="${'minutes-' + recentSession.session.id}">Minutes to add</label>
+                                <input type="number" name="minutes" min="1" max="480" value="5" required
+                                       th:id="${'minutes-' + recentSession.session.id}"
+                                       class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm">
+                                <button class="rounded-lg bg-cyan-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-cyan-800">Add minutes</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="rounded-2xl bg-white p-5 shadow-sm sm:p-7" aria-labelledby="completed-heading">
+        <div class="mb-4">
+            <h2 id="completed-heading" class="text-xl font-bold">Completed sessions</h2>
+            <p class="mt-1 text-sm text-slate-500">Most recent sessions are listed first.</p>
+        </div>
+        <p data-empty-completed th:hidden="${!#lists.isEmpty(completedSessions)}" class="py-5 text-sm text-slate-500">There are no completed sessions.</p>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-left text-sm">
+                <thead class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 max-lg:hidden">
+                <tr>
+                    <th scope="col" class="px-3 py-3">Student</th>
+                    <th scope="col" class="px-3 py-3">Start time</th>
+                    <th scope="col" class="px-3 py-3">End time</th>
+                    <th scope="col" class="px-3 py-3">Length</th>
+                    <th scope="col" class="px-3 py-3">Added</th>
+                    <th scope="col" class="px-3 py-3">Status</th>
+                    <th scope="col" class="px-3 py-3">Actions</th>
+                </tr>
+                </thead>
+                <tbody data-sessions-list="completed" class="max-lg:grid max-lg:gap-3">
+                <tr th:each="recentSession : ${completedSessions}" data-session-row
+                    th:attr="data-in-progress=${recentSession.inProgress},data-ends-at=${recentSession.endsAtMillis},data-started-at=${recentSession.startedAtMillis}"
+                class="border-b border-slate-100 bg-rose-50 align-top last:border-0 max-lg:block max-lg:rounded-xl max-lg:border max-lg:p-2">
+                <th scope="row" class="px-3 py-4 font-semibold max-lg:flex max-lg:items-center max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                        <span th:text="${recentSession.session.student.genmoji}" aria-hidden="true"></span>
+                        <span th:text="${recentSession.session.student.name}"></span>
+                    </th>
+                <td class="px-3 py-4 whitespace-nowrap text-slate-600 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Start time</span>
+                    <span th:text="${recentSession.startedAt}"></span>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap text-slate-600 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">End time</span>
+                    <span th:text="${recentSession.endAt}"></span>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Length</span>
+                    <span><span th:text="${recentSession.sessionMinutes}"></span> min</span>
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Added</span>
+                    <span><span th:text="${recentSession.addedMinutes}"></span> min</span>
+                </td>
+                <td class="px-3 py-4 max-lg:flex max-lg:items-center max-lg:justify-between max-lg:gap-3 max-lg:px-2 max-lg:py-3">
+                    <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Status</span>
+                    <span data-session-status class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-800">Completed</span>
+                </td>
+                    <td class="px-3 py-4"></td>
+                </tr>
+                </tbody>
+            </table>
         </div>
         <nav th:if="${sessions.totalPages > 1}" class="mt-6 flex items-center justify-between border-t border-slate-200 pt-4" aria-label="Session pages">
             <a th:if="${sessions.hasPrevious()}" th:href="@{/tutor/sessions(page=${sessions.number - 1})}"
@@ -81,9 +176,14 @@
     </section>
 </main>
 <script>
-    const sessionsList = document.querySelector("[data-sessions-list]");
-    if (sessionsList) {
-        const rows = Array.from(sessionsList.querySelectorAll("[data-session-row]"));
+    const sessionLists = {
+        inProgress: document.querySelector('[data-sessions-list="in-progress"]'),
+        completed: document.querySelector('[data-sessions-list="completed"]')
+    };
+    if (sessionLists.inProgress && sessionLists.completed) {
+        const rows = Array.from(document.querySelectorAll("[data-session-row]"));
+        const emptyInProgress = document.querySelector("[data-empty-in-progress]");
+        const emptyCompleted = document.querySelector("[data-empty-completed]");
 
         function orderRows() {
             rows.sort((first, second) => {
@@ -92,12 +192,15 @@
                 if (firstRunning !== secondRunning) {
                     return firstRunning ? -1 : 1;
                 }
-                if (firstRunning) {
-                    return Number(first.dataset.endsAt) - Number(second.dataset.endsAt);
-                }
-                return Number(second.dataset.startedAt) - Number(first.dataset.startedAt);
+                return firstRunning
+                    ? Number(first.dataset.endsAt) - Number(second.dataset.endsAt)
+                    : Number(second.dataset.startedAt) - Number(first.dataset.startedAt);
             });
-            rows.forEach(row => sessionsList.appendChild(row));
+            rows.forEach(row => {
+                const destination = row.dataset.inProgress === "true"
+                    ? sessionLists.inProgress : sessionLists.completed;
+                destination.appendChild(row);
+            });
         }
 
         function updateTimers() {
@@ -109,35 +212,37 @@
                 const remaining = Math.max(0, Math.ceil((Number(row.dataset.endsAt) - now) / 1000));
                 const timer = row.querySelector("[data-session-timer]");
                 const status = row.querySelector("[data-session-status]");
-                const stopAction = row.querySelector("[data-session-stop]");
                 if (timer) {
                     timer.textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`;
                 }
                 if (remaining === 0) {
                     row.dataset.inProgress = "false";
+                    row.classList.remove("bg-emerald-50/50");
+                    row.classList.add("bg-rose-50");
                     window.dispatchEvent(new CustomEvent("smartcheck:session-completed", {
                         detail: {
                             id: Number(row.dataset.sessionId),
                             studentName: row.dataset.studentName
                         }
                     }));
-                    if (stopAction) {
-                        stopAction.hidden = true;
-                    }
-                    row.classList.remove("border-emerald-200", "bg-emerald-50/50");
-                    row.classList.add("border-rose-200", "bg-rose-50");
+                    row.querySelectorAll("[data-session-action]").forEach(action => action.remove());
                     if (status) {
                         status.textContent = "Completed";
                         status.classList.remove("bg-emerald-100", "text-emerald-800");
                         status.classList.add("bg-rose-100", "text-rose-800");
                     }
                     if (timer) {
-                        timer.classList.remove("text-slate-700");
-                        timer.classList.add("text-rose-800");
+                        timer.remove();
                     }
                 }
             });
             orderRows();
+            if (emptyInProgress) {
+                emptyInProgress.hidden = rows.some(row => row.dataset.inProgress === "true");
+            }
+            if (emptyCompleted) {
+                emptyCompleted.hidden = rows.some(row => row.dataset.inProgress !== "true");
+            }
         }
 
         orderRows();

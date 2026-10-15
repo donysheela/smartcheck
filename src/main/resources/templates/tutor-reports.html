@@ -11,7 +11,7 @@
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <a th:href="@{/}" class="font-bold tracking-wide">SmartCheck</a>
         <div class="flex flex-wrap items-center justify-end gap-5">
-            <nav class="flex gap-5 text-sm text-slate-300">
+            <nav class="flex flex-wrap justify-end gap-x-4 gap-y-2 text-xs text-slate-300 sm:text-sm">
                 <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
                 <a th:href="@{/}" class="hover:text-white">Home</a>
             </nav>
@@ -65,7 +65,7 @@
         <h2 class="mb-4 text-xl font-bold">Sessions in range</h2>
         <p th:if="${#lists.isEmpty(sessions)}" class="text-sm text-slate-500">No sessions were started in this date range.</p>
         <div th:unless="${#lists.isEmpty(sessions)}" class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
+            <table class="w-full min-w-[760px] text-left text-sm">
                 <thead class="border-b border-slate-200 text-slate-500">
                 <tr><th class="px-3 py-3 font-medium">Student</th><th class="px-3 py-3 font-medium">Gender</th><th class="px-3 py-3 font-medium">Started</th><th class="px-3 py-3 font-medium">Ended</th><th class="px-3 py-3 font-medium">Length (min)</th><th class="px-3 py-3 font-medium">Added (min)</th><th class="px-3 py-3 font-medium">Status</th></tr>
                 </thead>
