@@ -44,7 +44,6 @@ public class TutorController {
     @GetMapping
     public String dashboard(Model model) {
         model.addAttribute("tutors", service.tutors());
-        model.addAttribute("activeCount", service.activeSessionCount());
         model.addAttribute("studentCount", service.studentCount());
         model.addAttribute("totalSessionCount", service.totalSessionCount());
         return "tutor";
@@ -306,6 +305,17 @@ public class TutorController {
         try {
             service.addSessionMinutes(sessionId, minutes);
             redirect.addFlashAttribute("success", "Session extended by " + minutes + " minutes.");
+        } catch (IllegalArgumentException exception) {
+            redirect.addFlashAttribute("error", exception.getMessage());
+        }
+        return "redirect:/tutor/sessions";
+    }
+
+    @PostMapping("/sessions/{sessionId}/stop")
+    public String stopSession(@PathVariable Long sessionId, RedirectAttributes redirect) {
+        try {
+            service.stopSession(sessionId);
+            redirect.addFlashAttribute("success", "Session stopped.");
         } catch (IllegalArgumentException exception) {
             redirect.addFlashAttribute("error", exception.getMessage());
         }

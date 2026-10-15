@@ -188,6 +188,40 @@ class SmartcheckApplicationTests {
     }
 
     @Test
+    void stopsInProgressSessionFromTutorSessionsPage() throws Exception {
+        service.addTutor("Stop Session Tutor", "stop-session@example.test", Gender.FEMALE);
+        Long tutorId = service.tutors().stream()
+                .filter(item -> item.getEmail().equals("stop-session@example.test"))
+                .findFirst().orElseThrow().getId();
+        service.addStudent("Stop Session Student", 45, Gender.MALE, java.util.Set.of(tutorId));
+        Long studentId = service.searchStudents("Stop Session Student").get(0).getId();
+        var session = service.startSession(studentId);
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> sessionsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(sessionsPage.body()).contains("Stop Session Student", ">Stop</button>");
+
+        HttpResponse<String> stopResponse = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions/" + session.getId() + "/stop"))
+                        .POST(HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(stopResponse.statusCode()).isBetween(300, 399);
+        var stoppedSession = service.session(session.getId());
+        assertThat(stoppedSession.isActive()).isFalse();
+        assertThat(stoppedSession.getCompletedAt()).isNotNull();
+        assertThat(service.activeSessionCount()).isZero();
+
+        HttpResponse<String> completedSessionsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(completedSessionsPage.body()).contains("Stop Session Student", "Completed", "Ended")
+                .doesNotContain(">Stop</button>");
+    }
+
+    @Test
     @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     void paginatesStudentsAndSessionsTwentyPerPage() throws Exception {
         service.addTutor("Pagination Tutor", "pagination@example.test", Gender.FEMALE);

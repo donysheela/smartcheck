@@ -51,6 +51,11 @@
                     <span data-session-status th:if="${recentSession.inProgress}" class="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">In progress</span>
                     <span data-session-status th:unless="${recentSession.inProgress}" class="rounded-full bg-rose-100 px-3 py-1 text-sm font-medium text-rose-800">Completed</span>
                     <span data-session-timer th:if="${recentSession.inProgress}" class="min-w-16 text-right font-mono text-lg font-semibold tabular-nums text-slate-700" th:attr="aria-label=${'Time remaining for ' + recentSession.session.student.name}">--:--</span>
+                    <form th:if="${recentSession.inProgress}" method="post"
+                          data-session-stop
+                          th:action="@{/tutor/sessions/{id}/stop(id=${recentSession.session.id})}">
+                        <button class="rounded-lg bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-rose-800">Stop</button>
+                    </form>
                     <form th:if="${recentSession.inProgress and recentSession.today}" method="post"
                           th:action="@{/tutor/sessions/{id}/add-time(id=${recentSession.session.id})}"
                           class="flex items-center gap-2">
@@ -103,11 +108,15 @@
                 const remaining = Math.max(0, Math.ceil((Number(row.dataset.endsAt) - now) / 1000));
                 const timer = row.querySelector("[data-session-timer]");
                 const status = row.querySelector("[data-session-status]");
+                const stopAction = row.querySelector("[data-session-stop]");
                 if (timer) {
                     timer.textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`;
                 }
                 if (remaining === 0) {
                     row.dataset.inProgress = "false";
+                    if (stopAction) {
+                        stopAction.hidden = true;
+                    }
                     row.classList.remove("border-emerald-200", "bg-emerald-50/50");
                     row.classList.add("border-rose-200", "bg-rose-50");
                     if (status) {

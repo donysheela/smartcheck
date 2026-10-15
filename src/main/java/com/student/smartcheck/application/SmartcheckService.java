@@ -144,6 +144,17 @@ public class SmartcheckService {
     }
 
     @Transactional
+    public void stopSession(Long sessionId) {
+        TrackingSession session = sessions.findWithStudentById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Session was not found."));
+        Instant now = Instant.now();
+        if (!session.isActive() || !session.getEndsAt().isAfter(now)) {
+            throw new IllegalArgumentException("Only an in-progress session can be stopped.");
+        }
+        session.complete(now);
+    }
+
+    @Transactional
     public void deleteTutor(Long tutorId) {
         Tutor tutor = tutors.findById(tutorId)
                 .orElseThrow(() -> new IllegalArgumentException("Tutor was not found."));
