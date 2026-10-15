@@ -67,10 +67,14 @@ public class SmartcheckService {
 
     @Transactional
     public void addTutor(String name, String email, Gender gender) {
+        validateName(name, "tutor");
         if (gender == null) {
             throw new IllegalArgumentException("Select a tutor gender.");
         }
-        String normalizedEmail = email.trim().toLowerCase();
+        String normalizedEmail = email == null ? "" : email.trim().toLowerCase();
+        if (!normalizedEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") || normalizedEmail.length() > 254) {
+            throw new IllegalArgumentException("Enter a valid tutor email address.");
+        }
         if (tutors.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new IllegalArgumentException("A tutor with this email address already exists.");
         }
@@ -96,9 +100,7 @@ public class SmartcheckService {
     }
 
     private void validateStudentDetails(String name, int sessionMinutes, Gender gender) {
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Enter a student name.");
-        }
+        validateName(name, "student");
         if (sessionMinutes < 1 || sessionMinutes > 480) {
             throw new IllegalArgumentException("Session length must be between 1 and 480 minutes.");
         }
@@ -107,9 +109,20 @@ public class SmartcheckService {
         }
     }
 
+    private void validateName(String name, String type) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Enter a " + type + " name.");
+        }
+        String trimmedName = name.trim();
+        if (trimmedName.length() > 100 || !trimmedName.matches("[\\p{L} ]+")) {
+            throw new IllegalArgumentException(
+                    "The " + type + " name can contain only letters and spaces (up to 100 characters).");
+        }
+    }
+
     private Set<Tutor> findAssignedTutors(Set<Long> tutorIds) {
         if (tutorIds == null || tutorIds.isEmpty()) {
-            throw new IllegalArgumentException("Select at least one tutor to receive alerts.");
+            return Set.of();
         }
         Set<Tutor> assignedTutors = tutors.findAllById(tutorIds).stream().collect(Collectors.toSet());
         if (assignedTutors.size() != tutorIds.size()) {

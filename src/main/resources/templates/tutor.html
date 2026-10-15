@@ -44,8 +44,8 @@
             <h2 class="text-xl font-bold">Add tutor</h2>
             <p class="mb-5 mt-1 text-sm text-slate-500">Tutor email addresses receive session alerts.</p>
             <form method="post" th:action="@{/tutor/tutors}" class="grid gap-3 sm:grid-cols-2">
-                <input required name="name" placeholder="Tutor name" class="rounded-xl border border-slate-300 px-4 py-3">
-                <input required type="email" name="email" placeholder="Email address" class="rounded-xl border border-slate-300 px-4 py-3">
+                <input required name="name" maxlength="100" pattern="[\p{L} ]+" title="Use letters and spaces only." placeholder="Tutor name" class="rounded-xl border border-slate-300 px-4 py-3">
+                <input required type="email" name="email" maxlength="254" placeholder="Email address" class="rounded-xl border border-slate-300 px-4 py-3">
                 <fieldset class="sm:col-span-2">
                     <legend class="mb-2 text-sm font-medium">Gender</legend>
                     <div class="flex gap-4">
@@ -70,9 +70,9 @@
         </section>
         <section class="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
             <h2 class="text-xl font-bold">Add student</h2>
-            <p class="mb-5 mt-1 text-sm text-slate-500">Set a session length and choose the tutors to alert.</p>
+            <p class="mb-5 mt-1 text-sm text-slate-500">Set a session length and choose the tutors to alert. Tutor assignment is optional.</p>
             <form method="post" th:action="@{/tutor/students}" class="space-y-3">
-                <input required name="name" placeholder="Student name" class="w-full rounded-xl border border-slate-300 px-4 py-3">
+                <input required name="name" maxlength="100" pattern="[\p{L} ]+" title="Use letters and spaces only." placeholder="Student name" class="w-full rounded-xl border border-slate-300 px-4 py-3">
                 <fieldset>
                     <legend class="mb-2 text-sm font-medium">Gender</legend>
                     <div class="flex gap-4">
@@ -81,19 +81,19 @@
                     </div>
                 </fieldset>
                 <label class="block text-sm font-medium">Session length (minutes)
-                    <input required type="number" min="1" max="480" name="sessionMinutes" value="45" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3">
+                    <input required type="number" min="1" max="480" step="1" name="sessionMinutes" value="45" class="mt-1 w-full rounded-xl border border-slate-300 px-4 py-3">
                 </label>
                 <fieldset>
                     <legend class="mb-2 text-sm font-medium">Alert these tutors</legend>
-                    <p th:if="${#lists.isEmpty(tutors)}" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Add a tutor before creating a student.</p>
+                    <p th:if="${#lists.isEmpty(tutors)}" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">No tutors added yet. You can still add a student.</p>
                     <div class="grid gap-2 sm:grid-cols-2">
                         <label th:each="tutor : ${tutors}" class="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm">
-                            <input type="checkbox" name="tutorIds" th:value="${tutor.id}" class="h-4 w-4 accent-cyan-700">
+                            <input type="checkbox" name="tutorIds" th:value="${tutor.id}" checked class="h-4 w-4 accent-cyan-700">
                             <span><span class="block font-medium" th:text="${tutor.name}"></span><span class="text-slate-500"><span th:text="${tutor.gender}"></span> · <span th:text="${tutor.email}"></span></span></span>
                         </label>
                     </div>
                 </fieldset>
-                <button th:disabled="${#lists.isEmpty(tutors)}" class="w-full rounded-xl bg-cyan-700 px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Add student</button>
+                <button class="w-full rounded-xl bg-cyan-700 px-4 py-3 font-semibold text-white">Add student</button>
             </form>
         </section>
     </div>

@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(properties = {
@@ -45,6 +46,22 @@ class SmartcheckApplicationTests {
     }
 
     @Test
+    void rejectsInvalidNamesEmailsAndSessionLengths() {
+        assertThatThrownBy(() -> service.addTutor("Tutor1", "valid@example.test", Gender.FEMALE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("letters and spaces");
+        assertThatThrownBy(() -> service.addTutor("Valid Tutor", "not-an-email", Gender.FEMALE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid tutor email");
+        assertThatThrownBy(() -> service.addStudent("Student!", 45, Gender.FEMALE, java.util.Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("letters and spaces");
+        assertThatThrownBy(() -> service.addStudent("Valid Student", 481, Gender.FEMALE, java.util.Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("between 1 and 480");
+    }
+
+    @Test
     void rendersHomeTutorAndStudentPages() throws Exception {
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpClient client = HttpClient.newHttpClient();
@@ -60,7 +77,8 @@ class SmartcheckApplicationTests {
         assertThat(tutorPage.body()).contains("name=\"gender\"", "value=\"FEMALE\"", "value=\"MALE\"",
                 "href=\"/tutor/students\"", "href=\"/tutor/sessions\"", "data-active-sessions",
                 "data-session-completions-url=\"/api/session-completions\"",
-                "Completed sessions today")
+                "Completed sessions today", "pattern=\"[\\p{L} ]+\"", "maxlength=\"100\"",
+                "type=\"email\"", "maxlength=\"254\"", "step=\"1\"")
                 .doesNotContain("Total sessions");
         HttpResponse<String> studentsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
@@ -283,9 +301,9 @@ class SmartcheckApplicationTests {
                 .filter(item -> item.getEmail().equals("pagination@example.test"))
                 .findFirst().orElseThrow().getId();
         for (int i = 0; i < 21; i++) {
-            service.addStudent("Paging Student %02d".formatted(i), 45, Gender.MALE,
-                    java.util.Set.of(tutorId));
-            Long studentId = service.searchStudents("Paging Student %02d".formatted(i)).get(0).getId();
+            String studentName = "Paging Student " + (char) ('A' + i);
+            service.addStudent(studentName, 45, Gender.MALE, java.util.Set.of(tutorId));
+            Long studentId = service.searchStudents(studentName).get(0).getId();
             service.startSession(studentId);
         }
 
@@ -297,12 +315,12 @@ class SmartcheckApplicationTests {
         HttpResponse<String> secondStudentsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students?page=1")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(firstStudentsPage.body()).contains("Paging Student 00", "Paging Student 19",
+        assertThat(firstStudentsPage.body()).contains("Paging Student A", "Paging Student T",
                         "Page <span>1</span> of <span>2</span>")
-                .doesNotContain("Paging Student 20");
-        assertThat(secondStudentsPage.body()).contains("Paging Student 20",
+                .doesNotContain("Paging Student U");
+        assertThat(secondStudentsPage.body()).contains("Paging Student U",
                         "Page <span>2</span> of <span>2</span>")
-                .doesNotContain("Paging Student 19");
+                .doesNotContain("Paging Student T");
 
         HttpResponse<String> sortedStudents = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl
@@ -311,10 +329,10 @@ class SmartcheckApplicationTests {
         assertThat(sortedStudents.statusCode()).isBetween(200, 299);
         assertThat(sortedStudents.body()).contains("data-student-results=\"table\"",
                         "data-student-view=\"table\"", "Sort by name", "Search by name",
-                        "Paging Student 20", "Page <span>1</span> of <span>2</span>")
-                .doesNotContain("Paging Student 00");
-        assertThat(sortedStudents.body().indexOf("Paging Student 20"))
-                .isLessThan(sortedStudents.body().indexOf("Paging Student 19"));
+                        "Paging Student U", "Page <span>1</span> of <span>2</span>")
+                .doesNotContain("Paging Student A");
+        assertThat(sortedStudents.body().indexOf("Paging Student U"))
+                .isLessThan(sortedStudents.body().indexOf("Paging Student T"));
 
         HttpResponse<String> firstSessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
@@ -322,14 +340,14 @@ class SmartcheckApplicationTests {
         HttpResponse<String> secondSessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions?page=1")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(firstSessionsPage.body()).contains("Paging Student 00", "Paging Student 19",
+        assertThat(firstSessionsPage.body()).contains("Paging Student A", "Paging Student T",
                         "Page <span>1</span> of <span>2</span>")
-                .doesNotContain("Paging Student 20");
-        assertThat(firstSessionsPage.body().indexOf("Paging Student 00"))
-                .isLessThan(firstSessionsPage.body().indexOf("Paging Student 19"));
-        assertThat(secondSessionsPage.body()).contains("Paging Student 20",
+                .doesNotContain("Paging Student U");
+        assertThat(firstSessionsPage.body().indexOf("Paging Student A"))
+                .isLessThan(firstSessionsPage.body().indexOf("Paging Student T"));
+        assertThat(secondSessionsPage.body()).contains("Paging Student U",
                         "Page <span>2</span> of <span>2</span>")
-                .doesNotContain("Paging Student 19");
+                .doesNotContain("Paging Student T");
     }
 
     @Test
@@ -415,7 +433,7 @@ class SmartcheckApplicationTests {
     }
 
     @Test
-    void addingStudentWithoutTutorReturnsToTutorDashboardWithError() throws Exception {
+    void addingStudentWithoutTutorIsAllowed() throws Exception {
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpClient client = HttpClient.newHttpClient();
         HttpResponse<String> response = client.send(
@@ -428,12 +446,31 @@ class SmartcheckApplicationTests {
 
         assertThat(response.statusCode()).isBetween(300, 399);
         String location = response.headers().firstValue("Location").orElseThrow();
-        assertThat(location).startsWith(baseUrl + "/tutor");
-        HttpResponse<String> dashboard = client.send(
-                HttpRequest.newBuilder(URI.create(location)).GET().build(),
+        assertThat(location).startsWith(baseUrl + "/tutor/students");
+        assertThat(service.students()).anySatisfy(student -> {
+            assertThat(student.getName()).isEqualTo("No Tutor Student");
+            assertThat(student.getTutors()).isEmpty();
+        });
+    }
+
+    @Test
+    void addingStudentSelectsAllAvailableTutorsByDefault() throws Exception {
+        service.addTutor("Default Tutor One", "default-one@example.test", Gender.FEMALE);
+        service.addTutor("Default Tutor Two", "default-two@example.test", Gender.MALE);
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(dashboard.statusCode()).isBetween(200, 299);
-        assertThat(dashboard.body()).contains("Select at least one tutor to receive alerts.");
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        long tutorCheckboxes = java.util.regex.Pattern.compile("name=\"tutorIds\" value=\"\\d+\"")
+                .matcher(response.body()).results().count();
+        long checkedTutorCheckboxes = java.util.regex.Pattern.compile(
+                        "name=\"tutorIds\" value=\"\\d+\"[^>]*\\schecked(?:\\s|>)")
+                .matcher(response.body()).results().count();
+        assertThat(tutorCheckboxes).isGreaterThanOrEqualTo(2);
+        assertThat(checkedTutorCheckboxes).isEqualTo(tutorCheckboxes);
     }
 
     @Test

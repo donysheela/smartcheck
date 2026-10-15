@@ -1,7 +1,7 @@
 <th:block xmlns:th="http://www.thymeleaf.org" th:fragment="studentEditor(student, tutors)">
     <form method="post" th:action="@{/tutor/students/{id}(id=${student.id})}" class="mt-3 w-full space-y-3 text-left">
         <label class="block text-sm font-medium">Name
-            <input required name="name" th:value="${student.name}" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2">
+            <input required name="name" maxlength="100" pattern="[\p{L} ]+" title="Use letters and spaces only." th:value="${student.name}" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2">
         </label>
         <fieldset>
             <legend class="mb-2 text-sm font-medium">Gender</legend>
@@ -11,7 +11,7 @@
             </div>
         </fieldset>
         <label class="block text-sm font-medium">Session length (minutes)
-            <input required type="number" min="1" max="480" name="sessionMinutes" th:value="${student.sessionMinutes}" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2">
+            <input required type="number" min="1" max="480" step="1" name="sessionMinutes" th:value="${student.sessionMinutes}" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2">
         </label>
         <fieldset>
             <legend class="mb-2 text-sm font-medium">Alert these tutors</legend>
