@@ -190,6 +190,11 @@ public class SmartcheckService {
     }
 
     @Transactional(readOnly = true)
+    public List<TrackingSession> completedSessionsSince(Instant completedAt) {
+        return sessions.findByActiveFalseAndCompletedAtGreaterThanEqualOrderByCompletedAtAsc(completedAt);
+    }
+
+    @Transactional(readOnly = true)
     public long studentCount() {
         return students.countByArchivedFalse();
     }

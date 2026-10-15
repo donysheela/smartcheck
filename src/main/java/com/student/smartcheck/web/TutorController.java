@@ -41,6 +41,11 @@ public class TutorController {
         this.service = service;
     }
 
+    @ModelAttribute("completionPollSince")
+    public long completionPollSince() {
+        return Instant.now().toEpochMilli();
+    }
+
     @GetMapping
     public String dashboard(Model model) {
         model.addAttribute("tutors", service.tutors());

@@ -1,0 +1,74 @@
+<div xmlns:th="http://www.thymeleaf.org" th:fragment="notifications"
+     th:attr="data-session-completions-url=@{/api/session-completions},data-session-completions-since=${completionPollSince}">
+    <div data-completion-toasts class="fixed right-4 top-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3"
+         aria-live="polite" aria-relevant="additions"></div>
+    <script>
+        (() => {
+            const root = document.currentScript.parentElement;
+            const toasts = root.querySelector("[data-completion-toasts]");
+            const endpoint = root.dataset.sessionCompletionsUrl;
+            const seenSessionIds = new Set();
+            let since = Number(root.dataset.sessionCompletionsSince);
+
+            function showCompletion(studentName) {
+                const toast = document.createElement("div");
+                toast.setAttribute("role", "status");
+                toast.className = "rounded-2xl border border-emerald-200 bg-white p-4 text-slate-900 shadow-xl ring-2 ring-emerald-500";
+
+                const title = document.createElement("p");
+                title.className = "text-sm font-semibold uppercase tracking-wide text-emerald-700";
+                title.textContent = "Session completed";
+                const message = document.createElement("p");
+                message.className = "mt-1 text-lg font-bold";
+                message.textContent = studentName;
+                toast.append(title, message);
+                toasts.appendChild(toast);
+
+                window.setTimeout(() => {
+                    toast.remove();
+                }, 5000);
+            }
+
+            window.addEventListener("smartcheck:session-completed", event => {
+                const {id, studentName} = event.detail;
+                if (!Number.isSafeInteger(id) || typeof studentName !== "string" || seenSessionIds.has(id)) {
+                    return;
+                }
+                seenSessionIds.add(id);
+                showCompletion(studentName);
+            });
+
+            async function refreshCompletions() {
+                try {
+                    const url = new URL(endpoint, window.location.href);
+                    url.searchParams.set("since", String(since));
+                    const response = await fetch(url, {cache: "no-store"});
+                    if (!response.ok) {
+                        throw new Error(`Session completion request failed (${response.status}).`);
+                    }
+                    const result = await response.json();
+                    if (!Number.isSafeInteger(result.checkedAt) || !Array.isArray(result.sessions)) {
+                        throw new Error("Session completion response was invalid.");
+                    }
+
+                    result.sessions.forEach(session => {
+                        if (!Number.isSafeInteger(session.id) || typeof session.studentName !== "string") {
+                            throw new Error("Session completion response contained an invalid session.");
+                        }
+                        if (!seenSessionIds.has(session.id)) {
+                            seenSessionIds.add(session.id);
+                            showCompletion(session.studentName);
+                        }
+                    });
+                    since = Math.max(since, result.checkedAt);
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    window.setTimeout(refreshCompletions, 5000);
+                }
+            }
+
+            refreshCompletions();
+        })();
+    </script>
+</div>

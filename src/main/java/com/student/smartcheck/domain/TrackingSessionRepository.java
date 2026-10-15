@@ -13,6 +13,8 @@ import java.time.Instant;
 public interface TrackingSessionRepository extends JpaRepository<TrackingSession, Long> {
     @EntityGraph(attributePaths = {"student", "student.tutors"})
     List<TrackingSession> findByActiveTrue();
+    @EntityGraph(attributePaths = "student")
+    List<TrackingSession> findByActiveFalseAndCompletedAtGreaterThanEqualOrderByCompletedAtAsc(Instant completedAt);
     long countByActiveTrueAndEndsAtAfter(Instant now);
     @EntityGraph(attributePaths = {"student", "student.tutors"})
     List<TrackingSession> findByAlertsEnabledTrueAndFinalAlertSentFalseAndEndsAtLessThanEqual(Instant endsAt);

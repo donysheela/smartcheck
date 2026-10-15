@@ -53,7 +53,8 @@ class SmartcheckApplicationTests {
                 HttpResponse.BodyHandlers.ofString());
         assertThat(tutorPage.statusCode()).isBetween(200, 299);
         assertThat(tutorPage.body()).contains("name=\"gender\"", "value=\"FEMALE\"", "value=\"MALE\"",
-                "href=\"/tutor/students\"", "href=\"/tutor/sessions\"", "data-active-sessions");
+                "href=\"/tutor/students\"", "href=\"/tutor/sessions\"", "data-active-sessions",
+                "data-session-completions-url=\"/api/session-completions\"");
         HttpResponse<String> studentsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -108,6 +109,30 @@ class SmartcheckApplicationTests {
 
         assertThat(response.statusCode()).isBetween(200, 299);
         assertThat(response.body()).isEqualTo("{\"count\":" + expectedCount + "}");
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void sessionCompletionsEndpointReturnsStudentName() throws Exception {
+        service.addTutor("Completion Alert Tutor", "completion-alert@example.test", Gender.FEMALE);
+        Long tutorId = service.tutors().stream()
+                .filter(tutor -> tutor.getEmail().equals("completion-alert@example.test"))
+                .findFirst().orElseThrow().getId();
+        service.addStudent("Completion Alert Student", 45, Gender.MALE, java.util.Set.of(tutorId));
+        Long studentId = service.searchStudents("Completion Alert Student").get(0).getId();
+        long since = Instant.now().minusSeconds(1).toEpochMilli();
+        var session = service.startSession(studentId);
+        service.stopSession(session.getId());
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/api/session-completions?since=" + since))
+                        .GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.body()).contains("\"studentName\":\"Completion Alert Student\"",
+                "\"checkedAt\":");
     }
 
     private int getStatus(HttpClient client, String url) throws Exception {
