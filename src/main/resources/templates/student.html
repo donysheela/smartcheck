@@ -16,7 +16,7 @@
 <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
     <header class="mb-8 mt-8">
         <p class="text-sm font-semibold uppercase tracking-[.2em] text-violet-300">Student session</p>
-        <h1 class="mt-2 text-4xl font-bold">Ready to focus?</h1>
+        <h1 class="mt-2 text-3xl font-bold sm:text-4xl">Ready to focus?</h1>
         <p class="mt-3 text-slate-300">Search for your name to start your configured session timer.</p>
     </header>
     <div th:if="${error}" class="mb-5 rounded-xl bg-rose-900/70 px-4 py-3 text-rose-100" th:text="${error}"></div>
@@ -24,7 +24,7 @@
         <p class="text-sm font-semibold uppercase tracking-widest text-emerald-300">Session in progress</p>
         <h2 class="mt-2 text-2xl font-semibold"><span th:text="${activeSession.student.genmoji}" aria-hidden="true"></span> <span th:text="${activeSession.student.name}"></span></h2>
         <p class="mt-1 text-slate-300">Stay focused until your timer reaches zero.</p>
-        <div id="countdown" class="my-6 text-6xl font-bold tabular-nums text-emerald-200" aria-live="polite">--:--</div>
+        <div id="countdown" class="my-6 text-5xl font-bold tabular-nums text-emerald-200 sm:text-6xl" aria-live="polite">--:--</div>
         <p id="timer-message" class="text-sm text-slate-300"></p>
     </section>
     <section class="rounded-3xl bg-white p-5 text-slate-900 shadow-xl sm:p-8">
