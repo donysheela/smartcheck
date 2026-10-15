@@ -2,6 +2,7 @@ package com.student.smartcheck.application;
 
 import com.student.smartcheck.domain.TrackingSession;
 import com.student.smartcheck.domain.TrackingSessionRepository;
+import com.student.smartcheck.util.DateTimeDisplay;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,7 +40,7 @@ public class ReminderService {
             Instant now = Instant.now();
             sessions.findByActiveTrue().stream()
                     .filter(session -> !now.isBefore(session.getEndsAt()))
-                    .forEach(TrackingSession::complete);
+                    .forEach(session -> session.complete(now));
             return;
         }
         Instant now = Instant.now();
@@ -48,27 +49,28 @@ public class ReminderService {
                 if (session.isAlertsEnabled() && !session.isTenMinuteReminderSent()
                         && !now.isBefore(session.getEndsAt().minus(Duration.ofMinutes(10)))) {
                     send(session, "10-minute session warning",
-                            session.getStudent().getName() + "'s session will end at " + session.getEndsAt() + ".");
+                            session.getStudent().getName() + "'s session will end at "
+                                    + DateTimeDisplay.format(session.getEndsAt()) + ".");
                     session.markTenMinuteReminderSent();
                 }
                 if (session.isAlertsEnabled() && !session.isFinalAlertSent()
                         && !now.isBefore(session.getEndsAt())) {
                     send(session, "Session time reached",
                             session.getStudent().getName() + "'s configured session time has ended.");
-                    session.markFinalAlertSent();
+                    session.markFinalAlertSent(now);
                 }
             } catch (MailException exception) {
                 log.error("Could not send a session alert for session {}", session.getId(), exception);
             }
             if (!now.isBefore(session.getEndsAt())) {
-                session.complete();
+                session.complete(now);
             }
         }
         for (TrackingSession session : sessions.findByAlertsEnabledTrueAndFinalAlertSentFalseAndEndsAtLessThanEqual(now)) {
             try {
                 send(session, "Session time reached",
                         session.getStudent().getName() + "'s configured session time has ended.");
-                session.markFinalAlertSent();
+                session.markFinalAlertSent(now);
             } catch (MailException exception) {
                 log.error("Could not send the final session alert for session {}", session.getId(), exception);
             }

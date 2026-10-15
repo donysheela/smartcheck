@@ -4,9 +4,15 @@ import com.student.smartcheck.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,16 +43,38 @@ public class SmartcheckService {
     }
 
     @Transactional(readOnly = true)
+    public Page<Student> students(Pageable pageable) {
+        Page<Student> page = students.findAllByArchivedFalse(pageable);
+        for (Student student : page) {
+            student.getTutors().size();
+        }
+        return page;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<Student> students(String name, Pageable pageable) {
+        Page<Student> page = students.findByArchivedFalseAndNameContainingIgnoreCase(name, pageable);
+        for (Student student : page) {
+            student.getTutors().size();
+        }
+        return page;
+    }
+
+    @Transactional(readOnly = true)
     public List<Student> searchStudents(String name) {
         return students.findTop20ByArchivedFalseAndNameContainingIgnoreCaseOrderByNameAsc(name.trim());
     }
 
     @Transactional
     public void addTutor(String name, String email, Gender gender) {
+        validateName(name, "tutor");
         if (gender == null) {
             throw new IllegalArgumentException("Select a tutor gender.");
         }
-        String normalizedEmail = email.trim().toLowerCase();
+        String normalizedEmail = email == null ? "" : email.trim().toLowerCase();
+        if (!normalizedEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") || normalizedEmail.length() > 254) {
+            throw new IllegalArgumentException("Enter a valid tutor email address.");
+        }
         if (tutors.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new IllegalArgumentException("A tutor with this email address already exists.");
         }
@@ -72,9 +100,7 @@ public class SmartcheckService {
     }
 
     private void validateStudentDetails(String name, int sessionMinutes, Gender gender) {
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Enter a student name.");
-        }
+        validateName(name, "student");
         if (sessionMinutes < 1 || sessionMinutes > 480) {
             throw new IllegalArgumentException("Session length must be between 1 and 480 minutes.");
         }
@@ -83,9 +109,20 @@ public class SmartcheckService {
         }
     }
 
+    private void validateName(String name, String type) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Enter a " + type + " name.");
+        }
+        String trimmedName = name.trim();
+        if (trimmedName.length() > 100 || !trimmedName.matches("[\\p{L} ]+")) {
+            throw new IllegalArgumentException(
+                    "The " + type + " name can contain only letters and spaces (up to 100 characters).");
+        }
+    }
+
     private Set<Tutor> findAssignedTutors(Set<Long> tutorIds) {
         if (tutorIds == null || tutorIds.isEmpty()) {
-            throw new IllegalArgumentException("Select at least one tutor to receive alerts.");
+            return Set.of();
         }
         Set<Tutor> assignedTutors = tutors.findAllById(tutorIds).stream().collect(Collectors.toSet());
         if (assignedTutors.size() != tutorIds.size()) {
@@ -101,8 +138,35 @@ public class SmartcheckService {
         if (student.isArchived()) {
             throw new IllegalArgumentException("Student has already been deleted.");
         }
-        sessions.findFirstByStudentIdAndActiveTrue(studentId).ifPresent(TrackingSession::complete);
+        sessions.findFirstByStudentIdAndActiveTrue(studentId)
+                .ifPresent(session -> session.complete(Instant.now()));
         student.archive();
+    }
+
+    @Transactional
+    public void addSessionMinutes(Long sessionId, int minutes) {
+        if (minutes < 1 || minutes > 480) {
+            throw new IllegalArgumentException("Additional time must be between 1 and 480 minutes.");
+        }
+        TrackingSession session = sessions.findWithStudentById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Session was not found."));
+        Instant now = Instant.now();
+        if (!session.isActive() || !session.getEndsAt().isAfter(now)
+                || !session.getStartedAt().atZone(ZoneId.systemDefault()).toLocalDate().equals(LocalDate.now())) {
+            throw new IllegalArgumentException("Additional time can only be added to an active session started today.");
+        }
+        session.addMinutes(minutes);
+    }
+
+    @Transactional
+    public void stopSession(Long sessionId) {
+        TrackingSession session = sessions.findWithStudentById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Session was not found."));
+        Instant now = Instant.now();
+        if (!session.isActive() || !session.getEndsAt().isAfter(now)) {
+            throw new IllegalArgumentException("Only an in-progress session can be stopped.");
+        }
+        session.complete(now);
     }
 
     @Transactional
@@ -131,18 +195,53 @@ public class SmartcheckService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrackingSession> recentSessions() {
-        return sessions.findTop20ByOrderByStartedAtDesc();
+    public Page<TrackingSession> sessions(Pageable pageable) {
+        return sessions.findAllForTutorSessions(pageable);
     }
 
     @Transactional(readOnly = true)
     public long activeSessionCount() {
-        return sessions.findByActiveTrue().size();
+        return sessions.countByActiveTrueAndEndsAtAfter(Instant.now());
+    }
+
+    @Transactional(readOnly = true)
+    public List<TrackingSession> completedSessionsToday(Instant now) {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate today = now.atZone(zone).toLocalDate();
+        Instant start = today.atStartOfDay(zone).toInstant();
+        Instant end = today.plusDays(1).atStartOfDay(zone).toInstant();
+        List<TrackingSession> completed = new ArrayList<>(
+                sessions.findByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtAsc(
+                        start, end));
+        sessions.findByActiveTrue().stream()
+                .filter(session -> !session.getEndsAt().isAfter(now)
+                        && !session.getEndsAt().isBefore(start))
+                .forEach(completed::add);
+        completed.sort(Comparator.comparing(session ->
+                session.getCompletedAt() == null ? session.getEndsAt() : session.getCompletedAt()));
+        return completed;
+    }
+
+    @Transactional(readOnly = true)
+    public long completedSessionCountToday() {
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate today = LocalDate.now(zone);
+        Instant start = today.atStartOfDay(zone).toInstant();
+        Instant end = today.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant now = Instant.now();
+        return sessions.countByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(start, end)
+                + sessions.countByActiveTrueAndEndsAtGreaterThanEqualAndEndsAtLessThanEqual(
+                        start, now.isBefore(end) ? now : end.minusNanos(1));
     }
 
     @Transactional(readOnly = true)
     public long studentCount() {
         return students.countByArchivedFalse();
+    }
+
+    @Transactional(readOnly = true)
+    public long totalSessionCount() {
+        return sessions.count();
     }
 
     @Transactional(readOnly = true)

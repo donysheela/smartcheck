@@ -8,14 +8,18 @@
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900">
 <header class="bg-slate-950 px-5 py-5 text-white">
-    <div class="mx-auto flex max-w-6xl items-center justify-between">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <a th:href="@{/}" class="font-bold tracking-wide">SmartCheck</a>
-        <nav class="flex gap-5 text-sm text-slate-300">
-            <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
-            <a th:href="@{/}" class="hover:text-white">Home</a>
-        </nav>
+        <div class="flex flex-wrap items-center justify-end gap-5">
+            <nav class="flex gap-5 text-sm text-slate-300">
+                <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
+                <a th:href="@{/}" class="hover:text-white">Home</a>
+            </nav>
+            <div th:replace="~{fragments/active-sessions :: indicator}"></div>
+        </div>
     </div>
 </header>
+<div th:replace="~{fragments/session-completion-notifications :: notifications}"></div>
 <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
     <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -63,14 +67,17 @@
         <div th:unless="${#lists.isEmpty(sessions)}" class="overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-slate-200 text-slate-500">
-                <tr><th class="px-3 py-3 font-medium">Student</th><th class="px-3 py-3 font-medium">Gender</th><th class="px-3 py-3 font-medium">Started</th><th class="px-3 py-3 font-medium">Status</th></tr>
+                <tr><th class="px-3 py-3 font-medium">Student</th><th class="px-3 py-3 font-medium">Gender</th><th class="px-3 py-3 font-medium">Started</th><th class="px-3 py-3 font-medium">Ended</th><th class="px-3 py-3 font-medium">Length (min)</th><th class="px-3 py-3 font-medium">Added (min)</th><th class="px-3 py-3 font-medium">Status</th></tr>
                 </thead>
                 <tbody>
                 <tr th:each="recentSession : ${sessions}" class="border-b border-slate-100 last:border-0">
-                    <td class="px-3 py-3 font-medium"><span th:text="${recentSession.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.student.name}"></span></td>
-                    <td class="px-3 py-3" th:text="${recentSession.student.gender}"></td>
+                    <td class="px-3 py-3 font-medium"><span th:text="${recentSession.session.student.genmoji}" aria-hidden="true"></span> <span th:text="${recentSession.session.student.name}"></span></td>
+                    <td class="px-3 py-3" th:text="${recentSession.session.student.gender}"></td>
                     <td class="px-3 py-3 text-slate-600" th:text="${recentSession.startedAt}"></td>
-                    <td class="px-3 py-3" th:text="${recentSession.active ? 'In progress' : 'Completed'}"></td>
+                    <td class="px-3 py-3 text-slate-600" th:text="${recentSession.completedAt ?: 'In progress'}"></td>
+                    <td class="px-3 py-3" th:text="${recentSession.sessionMinutes}"></td>
+                    <td class="px-3 py-3" th:text="${recentSession.addedMinutes}"></td>
+                    <td class="px-3 py-3" th:text="${recentSession.inProgress ? 'In progress' : 'Completed'}"></td>
                 </tr>
                 </tbody>
             </table>

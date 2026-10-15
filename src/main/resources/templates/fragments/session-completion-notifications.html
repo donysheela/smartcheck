@@ -1,0 +1,238 @@
+<div xmlns:th="http://www.thymeleaf.org" th:fragment="notifications"
+     th:attr="data-session-completions-url=@{/api/session-completions},data-session-completions-since=${completionPollSince},data-session-completions-opened-at=${completionPageOpenedAt}">
+    <div data-completion-toasts class="fixed right-4 top-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3"
+         aria-live="polite" aria-relevant="additions"></div>
+    <script>
+        (() => {
+            const root = document.currentScript.parentElement;
+            const toasts = root.querySelector("[data-completion-toasts]");
+            const endpoint = root.dataset.sessionCompletionsUrl;
+            const inbox = document.querySelector("[data-completion-inbox]");
+            const inboxList = inbox?.querySelector("[data-completion-inbox-list]");
+            const inboxEmpty = inbox?.querySelector("[data-completion-inbox-empty]");
+            const todayCount = document.querySelector("[data-today-completion-count]");
+            const liveStatus = inbox?.querySelector("[data-completion-live-status]");
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            let audioContext;
+            const notificationsKey = "smartcheck.sessionCompletions";
+            const dismissedKey = "smartcheck.dismissedSessionCompletions";
+            const seenSessionIds = new Set();
+            const dismissedSessionIds = new Set();
+            const dismissedAtById = new Map();
+            let notifications = [];
+            const since = Number(root.dataset.sessionCompletionsSince);
+            const pageOpenedAt = Number(root.dataset.sessionCompletionsOpenedAt);
+
+            try {
+                const storedDismissed = JSON.parse(localStorage.getItem(dismissedKey) || "[]");
+                if (Array.isArray(storedDismissed)) {
+                    storedDismissed.filter(item => Number.isSafeInteger(item.id)
+                        && Number.isSafeInteger(item.completedAt)
+                        && item.completedAt >= since)
+                        .forEach(item => {
+                            dismissedSessionIds.add(item.id);
+                            dismissedAtById.set(item.id, item.completedAt);
+                        });
+                    localStorage.setItem(dismissedKey, JSON.stringify(
+                        storedDismissed.filter(item => Number.isSafeInteger(item.id)
+                            && Number.isSafeInteger(item.completedAt)
+                            && item.completedAt >= since)
+                    ));
+                }
+                const storedNotifications = JSON.parse(localStorage.getItem(notificationsKey) || "[]");
+                if (Array.isArray(storedNotifications)) {
+                    notifications = storedNotifications.filter(session =>
+                        Number.isSafeInteger(session.id)
+                        && typeof session.studentName === "string"
+                        && Number.isSafeInteger(session.completedAt)
+                        && session.completedAt >= since
+                        && !dismissedSessionIds.has(session.id)
+                    );
+                    notifications.forEach(session => seenSessionIds.add(session.id));
+                }
+            } catch (error) {
+                console.error("Could not load saved session completion notifications.", error);
+            }
+
+            function saveNotifications() {
+                try {
+                    localStorage.setItem(notificationsKey, JSON.stringify(notifications));
+                } catch (error) {
+                    console.error("Could not save session completion notifications.", error);
+                }
+            }
+
+            function saveDismissed() {
+                try {
+                    const dismissed = [...dismissedAtById.entries()]
+                        .map(([id, completedAt]) => ({id, completedAt}));
+                    localStorage.setItem(dismissedKey, JSON.stringify(dismissed));
+                } catch (error) {
+                    console.error("Could not save cleared session completion notifications.", error);
+                }
+            }
+
+            function renderInbox() {
+                if (!inbox || !inboxList) {
+                    return;
+                }
+                inboxEmpty.classList.toggle("hidden", notifications.length > 0);
+                inboxList.replaceChildren();
+                notifications.forEach(session => {
+                    const item = document.createElement("li");
+                    item.className = "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4";
+                    const details = document.createElement("div");
+                    const name = document.createElement("p");
+                    name.className = "font-semibold text-slate-900";
+                    name.textContent = session.studentName;
+                    const completedAt = document.createElement("p");
+                    completedAt.className = "mt-1 text-sm text-slate-600";
+                    completedAt.textContent = `Session completed ${new Date(session.completedAt).toLocaleString()}`;
+                    details.append(name, completedAt);
+                    const clearButton = document.createElement("button");
+                    clearButton.type = "button";
+                    clearButton.className = "rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-white hover:text-slate-900";
+                    clearButton.textContent = "Clear";
+                    clearButton.setAttribute("aria-label", `Clear completion notification for ${session.studentName}`);
+                    clearButton.addEventListener("click", () => {
+                        dismissedSessionIds.add(session.id);
+                        dismissedAtById.set(session.id, session.completedAt);
+                        notifications = notifications.filter(item => item.id !== session.id);
+                        saveDismissed();
+                        saveNotifications();
+                        renderInbox();
+                    });
+                    item.append(details, clearButton);
+                    inboxList.appendChild(item);
+                });
+            }
+
+            inbox?.querySelector("[data-clear-all-completions]")?.addEventListener("click", () => {
+                notifications.forEach(session => {
+                    dismissedSessionIds.add(session.id);
+                    dismissedAtById.set(session.id, session.completedAt);
+                });
+                notifications = [];
+                saveDismissed();
+                saveNotifications();
+                renderInbox();
+            });
+            renderInbox();
+
+            async function unlockNotificationSound() {
+                if (!AudioContextClass) {
+                    return;
+                }
+                audioContext ??= new AudioContextClass();
+                if (audioContext.state === "suspended") {
+                    try {
+                        await audioContext.resume();
+                    } catch (error) {
+                        console.error("Could not enable session completion sound.", error);
+                    }
+                }
+            }
+
+            document.addEventListener("pointerdown", unlockNotificationSound, {once: true});
+            document.addEventListener("keydown", unlockNotificationSound, {once: true});
+
+            function playNotificationSound() {
+                if (!audioContext || audioContext.state !== "running") {
+                    return;
+                }
+                const now = audioContext.currentTime;
+                [0, 0.18].forEach((offset, index) => {
+                    const oscillator = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    oscillator.type = "sine";
+                    oscillator.frequency.value = index === 0 ? 660 : 880;
+                    gain.gain.setValueAtTime(0.0001, now + offset);
+                    gain.gain.exponentialRampToValueAtTime(0.12, now + offset + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
+                    oscillator.connect(gain);
+                    gain.connect(audioContext.destination);
+                    oscillator.start(now + offset);
+                    oscillator.stop(now + offset + 0.17);
+                });
+            }
+
+            function showCompletion(studentName) {
+                const toast = document.createElement("div");
+                toast.setAttribute("role", "status");
+                toast.className = "rounded-2xl border border-emerald-200 bg-white p-4 text-slate-900 shadow-xl ring-2 ring-emerald-500";
+
+                const title = document.createElement("p");
+                title.className = "text-sm font-semibold uppercase tracking-wide text-emerald-700";
+                title.textContent = "Session completed";
+                const message = document.createElement("p");
+                message.className = "mt-1 text-lg font-bold";
+                message.textContent = studentName;
+                toast.append(title, message);
+                toasts.appendChild(toast);
+                playNotificationSound();
+
+                window.setTimeout(() => {
+                    toast.remove();
+                }, 5000);
+            }
+
+            function recordCompletion(session, showToast) {
+                if (!Number.isSafeInteger(session.id) || typeof session.studentName !== "string"
+                        || !Number.isSafeInteger(session.completedAt) || seenSessionIds.has(session.id)
+                        || dismissedSessionIds.has(session.id)) {
+                    return;
+                }
+                seenSessionIds.add(session.id);
+                notifications.unshift(session);
+                saveNotifications();
+                renderInbox();
+                if (showToast) {
+                    showCompletion(session.studentName);
+                }
+            }
+
+            window.addEventListener("smartcheck:session-completed", event => {
+                const {id, studentName} = event.detail;
+                recordCompletion({id, studentName, completedAt: Date.now()}, true);
+            });
+
+            async function refreshCompletions() {
+                try {
+                    const url = new URL(endpoint, window.location.href);
+                    const response = await fetch(url, {cache: "no-store"});
+                    if (!response.ok) {
+                        throw new Error(`Session completion request failed (${response.status}).`);
+                    }
+                    const result = await response.json();
+                    if (!Number.isSafeInteger(result.todayCount) || !Array.isArray(result.sessions)) {
+                        throw new Error("Session completion response was invalid.");
+                    }
+                    if (todayCount) {
+                        todayCount.textContent = result.todayCount;
+                    }
+                    if (liveStatus) {
+                        liveStatus.textContent = "Live updates connected.";
+                    }
+
+                    result.sessions.forEach(session => {
+                        if (!Number.isSafeInteger(session.id) || typeof session.studentName !== "string"
+                                || !Number.isSafeInteger(session.completedAt)) {
+                            throw new Error("Session completion response contained an invalid session.");
+                        }
+                        recordCompletion(session, session.completedAt >= pageOpenedAt);
+                    });
+                    saveNotifications();
+                } catch (error) {
+                    console.error(error);
+                    if (liveStatus) {
+                        liveStatus.textContent = "Live updates unavailable. Retrying…";
+                    }
+                } finally {
+                    window.setTimeout(refreshCompletions, 1000);
+                }
+            }
+
+            refreshCompletions();
+        })();
+    </script>
+</div>
