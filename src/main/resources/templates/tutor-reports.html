@@ -8,12 +8,15 @@
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900">
 <header class="bg-slate-950 px-5 py-5 text-white">
-    <div class="mx-auto flex max-w-6xl items-center justify-between">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <a th:href="@{/}" class="font-bold tracking-wide">SmartCheck</a>
-        <nav class="flex gap-5 text-sm text-slate-300">
-            <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
-            <a th:href="@{/}" class="hover:text-white">Home</a>
-        </nav>
+        <div class="flex flex-wrap items-center justify-end gap-5">
+            <nav class="flex gap-5 text-sm text-slate-300">
+                <a th:href="@{/tutor}" class="hover:text-white">Dashboard</a>
+                <a th:href="@{/}" class="hover:text-white">Home</a>
+            </nav>
+            <div th:replace="~{fragments/active-sessions :: indicator}"></div>
+        </div>
     </div>
 </header>
 <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6">

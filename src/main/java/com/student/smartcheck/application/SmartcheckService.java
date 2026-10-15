@@ -175,7 +175,7 @@ public class SmartcheckService {
 
     @Transactional(readOnly = true)
     public long activeSessionCount() {
-        return sessions.findByActiveTrue().size();
+        return sessions.countByActiveTrueAndEndsAtAfter(Instant.now());
     }
 
     @Transactional(readOnly = true)

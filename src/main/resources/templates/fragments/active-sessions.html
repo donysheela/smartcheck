@@ -1,0 +1,38 @@
+<div xmlns:th="http://www.thymeleaf.org" th:fragment="indicator"
+     th:attr="data-active-sessions-url=@{/api/active-sessions}"
+     class="flex shrink-0 items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-sm text-emerald-100"
+     data-active-sessions>
+    <span class="relative flex h-2.5 w-2.5" aria-hidden="true">
+        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75"></span>
+        <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-300"></span>
+    </span>
+    <span>Active sessions</span>
+    <span data-active-session-count aria-live="polite" aria-atomic="true">…</span>
+    <script>
+        (() => {
+            const indicator = document.currentScript.parentElement;
+            const count = indicator.querySelector("[data-active-session-count]");
+            const endpoint = indicator.dataset.activeSessionsUrl;
+
+            async function refreshCount() {
+                try {
+                    const response = await fetch(endpoint, {cache: "no-store"});
+                    if (!response.ok) {
+                        throw new Error(`Active session count request failed (${response.status}).`);
+                    }
+                    const result = await response.json();
+                    if (!Number.isInteger(result.count) || result.count < 0) {
+                        throw new Error("Active session count response was invalid.");
+                    }
+                    count.textContent = result.count;
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    window.setTimeout(refreshCount, 5000);
+                }
+            }
+
+            refreshCount();
+        })();
+    </script>
+</div>

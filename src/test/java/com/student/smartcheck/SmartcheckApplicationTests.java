@@ -43,24 +43,32 @@ class SmartcheckApplicationTests {
     void rendersHomeTutorAndStudentPages() throws Exception {
         String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
         HttpClient client = HttpClient.newHttpClient();
-        assertThat(getStatus(client, baseUrl + "/")).isBetween(200, 299);
+        HttpResponse<String> homePage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(homePage.statusCode()).isBetween(200, 299);
+        assertThat(homePage.body()).contains("data-active-sessions", "/api/active-sessions");
         HttpResponse<String> tutorPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(tutorPage.statusCode()).isBetween(200, 299);
         assertThat(tutorPage.body()).contains("name=\"gender\"", "value=\"FEMALE\"", "value=\"MALE\"",
-                "href=\"/tutor/students\"", "href=\"/tutor/sessions\"");
+                "href=\"/tutor/students\"", "href=\"/tutor/sessions\"", "data-active-sessions");
         HttpResponse<String> studentsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/students")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(studentsPage.statusCode()).isBetween(200, 299);
-        assertThat(studentsPage.body()).contains("Students");
+        assertThat(studentsPage.body()).contains("Students", "data-active-sessions");
         HttpResponse<String> sessionsPage = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/sessions")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(sessionsPage.statusCode()).isBetween(200, 299);
-        assertThat(sessionsPage.body()).contains("Recent sessions");
-        assertThat(getStatus(client, baseUrl + "/tutor/reports")).isBetween(200, 299);
+        assertThat(sessionsPage.body()).contains("Recent sessions", "data-active-sessions");
+        HttpResponse<String> reportsPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/reports")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(reportsPage.statusCode()).isBetween(200, 299);
+        assertThat(reportsPage.body()).contains("data-active-sessions");
         HttpResponse<byte[]> export = client.send(
                 HttpRequest.newBuilder(URI.create(baseUrl + "/tutor/reports/export")).GET().build(),
                 HttpResponse.BodyHandlers.ofByteArray());
@@ -74,7 +82,32 @@ class SmartcheckApplicationTests {
             assertThat(workbook.getSheet("Summary")).isNotNull();
             assertThat(workbook.getSheet("Sessions")).isNotNull();
         }
-        assertThat(getStatus(client, baseUrl + "/student?query=missing")).isBetween(200, 299);
+        HttpResponse<String> studentPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/student?query=missing")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(studentPage.statusCode()).isBetween(200, 299);
+        assertThat(studentPage.body()).contains("data-active-sessions");
+    }
+
+    @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    void activeSessionCountEndpointReturnsCurrentCount() throws Exception {
+        service.addTutor("Live Count Tutor", "live-count@example.test", Gender.FEMALE);
+        Long tutorId = service.tutors().stream()
+                .filter(tutor -> tutor.getEmail().equals("live-count@example.test"))
+                .findFirst().orElseThrow().getId();
+        service.addStudent("Live Count Student", 45, Gender.MALE, java.util.Set.of(tutorId));
+        Long studentId = service.searchStudents("Live Count Student").get(0).getId();
+        long expectedCount = service.activeSessionCount() + 1;
+        service.startSession(studentId);
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/api/active-sessions")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isBetween(200, 299);
+        assertThat(response.body()).isEqualTo("{\"count\":" + expectedCount + "}");
     }
 
     private int getStatus(HttpClient client, String url) throws Exception {
