@@ -1,6 +1,8 @@
 package com.student.smartcheck.application;
 
 import com.student.smartcheck.domain.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class SmartcheckService {
+    private static final Logger log = LoggerFactory.getLogger(SmartcheckService.class);
     private final TutorRepository tutors;
     private final StudentRepository students;
     private final TrackingSessionRepository sessions;
@@ -68,6 +71,9 @@ public class SmartcheckService {
     @Transactional
     public void addTutor(String name, String email, Gender gender) {
         validateName(name, "tutor");
+        if (tutors.existsByNameIgnoreCase(name.trim())) {
+            throw new IllegalArgumentException("A tutor with this name already exists.");
+        }
         if (gender == null) {
             throw new IllegalArgumentException("Select a tutor gender.");
         }
@@ -78,14 +84,19 @@ public class SmartcheckService {
         if (tutors.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new IllegalArgumentException("A tutor with this email address already exists.");
         }
-        tutors.save(new Tutor(name.trim(), normalizedEmail, gender));
+        Tutor tutor = tutors.save(new Tutor(name.trim(), normalizedEmail, gender));
+        log.debug("Added tutor {}", tutor.getId());
     }
 
     @Transactional
     public void addStudent(String name, int sessionMinutes, Gender gender, Set<Long> tutorIds) {
         validateStudentDetails(name, sessionMinutes, gender);
+        if (students.existsByNameIgnoreCase(name.trim())) {
+            throw new IllegalArgumentException("A student with this name already exists.");
+        }
         Set<Tutor> assignedTutors = findAssignedTutors(tutorIds);
-        students.save(new Student(name.trim(), sessionMinutes, gender, assignedTutors));
+        Student student = students.save(new Student(name.trim(), sessionMinutes, gender, assignedTutors));
+        log.debug("Added student {} with {} assigned tutors", student.getId(), assignedTutors.size());
     }
 
     @Transactional
@@ -96,7 +107,11 @@ public class SmartcheckService {
         if (student.isArchived()) {
             throw new IllegalArgumentException("This student is no longer active.");
         }
+        if (students.existsByNameIgnoreCaseAndIdNot(name.trim(), studentId)) {
+            throw new IllegalArgumentException("A student with this name already exists.");
+        }
         student.update(name.trim(), sessionMinutes, gender, findAssignedTutors(tutorIds));
+        log.debug("Updated student {}", studentId);
     }
 
     private void validateStudentDetails(String name, int sessionMinutes, Gender gender) {
@@ -141,6 +156,7 @@ public class SmartcheckService {
         sessions.findFirstByStudentIdAndActiveTrue(studentId)
                 .ifPresent(session -> session.complete(Instant.now()));
         student.archive();
+        log.debug("Archived student {}", studentId);
     }
 
     @Transactional
@@ -156,6 +172,7 @@ public class SmartcheckService {
             throw new IllegalArgumentException("Additional time can only be added to an active session started today.");
         }
         session.addMinutes(minutes);
+        log.debug("Added {} minutes to session {}", minutes, sessionId);
     }
 
     @Transactional
@@ -167,6 +184,7 @@ public class SmartcheckService {
             throw new IllegalArgumentException("Only an in-progress session can be stopped.");
         }
         session.complete(now);
+        log.debug("Stopped session {}", sessionId);
     }
 
     @Transactional
@@ -177,6 +195,7 @@ public class SmartcheckService {
             student.removeTutor(tutor);
         }
         tutors.delete(tutor);
+        log.debug("Deleted tutor {}", tutorId);
     }
 
     @Transactional
@@ -190,8 +209,10 @@ public class SmartcheckService {
             throw new IllegalArgumentException("This student already has an active timer.");
         }
         Instant now = Instant.now();
-        return sessions.save(new TrackingSession(student, now,
+        TrackingSession session = sessions.save(new TrackingSession(student, now,
                 now.plusSeconds(student.getSessionMinutes() * 60L), remindersEnabled));
+        log.debug("Started session {} for student {}", session.getId(), studentId);
+        return session;
     }
 
     @Transactional(readOnly = true)

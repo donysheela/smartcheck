@@ -88,8 +88,8 @@
 
         <div data-student-results="table" th:classappend="${view == 'cards'} ? 'hidden' : ''">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[640px] border-collapse text-left text-sm">
-                    <thead>
+                <table class="w-full border-collapse text-left text-sm">
+                    <thead class="max-lg:hidden">
                     <tr class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                         <th scope="col" class="px-3 py-3">Student</th>
                         <th scope="col" class="px-3 py-3">Gender</th>
@@ -98,27 +98,38 @@
                         <th scope="col" class="px-3 py-3">Actions</th>
                     </tr>
                     </thead>
-                    <tbody>
-                    <tr th:each="student : ${students}" class="border-b border-slate-100 align-top last:border-0">
-                        <th scope="row" class="px-3 py-4 font-semibold">
+                    <tbody class="max-lg:grid max-lg:gap-3">
+                    <tr th:each="student : ${students}"
+                        class="border-b border-slate-100 align-top last:border-0 max-lg:block max-lg:rounded-xl max-lg:border max-lg:p-2">
+                        <th scope="row" class="px-3 py-4 font-semibold max-lg:flex max-lg:items-center max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
                             <span th:text="${student.genmoji}" aria-hidden="true"></span>
                             <span th:text="${student.name}"></span>
                         </th>
-                        <td class="px-3 py-4" th:text="${student.gender}"></td>
-                        <td class="px-3 py-4"><span th:text="${student.sessionMinutes}"></span> minutes</td>
-                        <td class="px-3 py-4">
-                            <span th:if="${#lists.isEmpty(student.tutors)}" class="text-slate-500">None assigned</span>
-                            <span th:each="assigned, iter : ${student.tutors}">
-                                <span th:text="${assigned.name}"></span><span th:if="${!iter.last}">, </span>
+                        <td class="px-3 py-4 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                            <span class="hidden shrink-0 text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Gender</span>
+                            <span th:text="${student.gender}" class="max-lg:text-right"></span>
+                        </td>
+                        <td class="px-3 py-4 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                            <span class="hidden shrink-0 text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Session</span>
+                            <span class="max-lg:text-right"><span th:text="${student.sessionMinutes}"></span> minutes</span>
+                        </td>
+                        <td class="px-3 py-4 max-lg:flex max-lg:justify-between max-lg:gap-3 max-lg:border-b max-lg:px-2 max-lg:py-3">
+                            <span class="hidden shrink-0 text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Alert tutors</span>
+                            <span class="max-lg:min-w-0 max-lg:text-right max-lg:break-words">
+                                <span th:if="${#lists.isEmpty(student.tutors)}" class="text-slate-500">None assigned</span>
+                                <span th:each="assigned, iter : ${student.tutors}">
+                                    <span th:text="${assigned.name}"></span><span th:if="${!iter.last}">, </span>
+                                </span>
                             </span>
                         </td>
-                        <td class="px-3 py-4">
+                        <td class="px-3 py-4 max-lg:flex max-lg:flex-col max-lg:gap-2 max-lg:px-2 max-lg:py-3">
+                            <span class="hidden text-xs font-medium uppercase tracking-wide text-slate-500 max-lg:inline">Actions</span>
                             <div class="flex flex-wrap items-start gap-3">
                                 <form method="post" th:action="@{/tutor/students/{id}/delete(id=${student.id})}"
                                       onsubmit="return confirm('Remove this student from the active list? Their session history will be kept.');">
                                     <button class="font-medium text-rose-700 hover:text-rose-900">Delete</button>
                                 </form>
-                                <details>
+                                <details class="max-lg:w-full">
                                     <summary class="cursor-pointer font-medium text-cyan-700 hover:text-cyan-900">Edit</summary>
                                     <div th:replace="~{fragments/student-editor :: studentEditor(${student}, ${tutors})}"></div>
                                 </details>
