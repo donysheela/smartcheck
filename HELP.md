@@ -15,6 +15,11 @@ SmartCheck is a Spring Boot, Thymeleaf, and Tailwind-based student session track
 3. Open pgAdmin and connect to the local server. Right-click **Login/Group Roles** → **Create** → **Login/Group Role**. Name it `smartcheck`, set a password, and enable **Can login**.
 4. Right-click **Databases** → **Create** → **Database**. Name it `smartcheck` and set `smartcheck` as the owner.
 5. Keep the default connection values (`localhost:5432`, database/user `smartcheck`). If your password differs from the development default, set `DB_PASSWORD` to that password before launching the application.
+6. In pgAdmin's Query Tool, execute this SQL to set the `smartcheck` role password:
+
+   ```sql
+   ALTER ROLE smartcheck WITH LOGIN PASSWORD 'smartcheck';
+   ```
 
 Alternatively, create the user and database from the `psql` terminal as the PostgreSQL administrator:
 
