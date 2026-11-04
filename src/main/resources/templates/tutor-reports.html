@@ -27,7 +27,7 @@
             <h1 class="mt-1 text-3xl font-bold">Reports</h1>
             <p class="mt-2 text-slate-600">Session activity for <span th:text="${rangeLabel}">all dates through today</span>.</p>
         </div>
-        <a th:href="@{/tutor/reports/export(fromDate=${fromDate},toDate=${toDate})}" class="rounded-xl bg-cyan-700 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-800">Export to Excel</a>
+        <a th:href="@{/tutor/reports/export(fromDate=${fromDate},toDate=${toDate})}" data-loading-download class="rounded-xl bg-cyan-700 px-5 py-3 text-sm font-semibold text-white hover:bg-cyan-800">Export to Excel</a>
     </div>
     <form method="get" th:action="@{/tutor/reports}" class="mb-6 flex flex-wrap items-end gap-4 rounded-2xl bg-white p-5 shadow-sm">
         <label class="text-sm font-medium text-slate-700">From date (optional)
@@ -105,5 +105,6 @@
         </div>
     </section>
 </main>
+<div th:replace="~{fragments/loading-indicator :: loadingIndicator}"></div>
 </body>
 </html>
