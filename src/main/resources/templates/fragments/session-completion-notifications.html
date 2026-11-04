@@ -22,6 +22,10 @@
             let notifications = [];
             const since = Number(root.dataset.sessionCompletionsSince);
             const pageOpenedAt = Number(root.dataset.sessionCompletionsOpenedAt);
+            let cursorAtMicros = since * 1000;
+            let cursorId = 0;
+            let refreshTimeout;
+            let requestInFlight = false;
 
             try {
                 const storedDismissed = JSON.parse(localStorage.getItem(dismissedKey) || "[]");
@@ -197,14 +201,24 @@
             });
 
             async function refreshCompletions() {
+                if (requestInFlight) {
+                    return;
+                }
+                requestInFlight = true;
                 try {
                     const url = new URL(endpoint, window.location.href);
+                    url.searchParams.set("afterMicros", cursorAtMicros);
+                    url.searchParams.set("afterId", cursorId);
                     const response = await fetch(url, {cache: "no-store"});
                     if (!response.ok) {
                         throw new Error(`Session completion request failed (${response.status}).`);
                     }
                     const result = await response.json();
-                    if (!Number.isSafeInteger(result.todayCount) || !Array.isArray(result.sessions)) {
+                    if (!Number.isSafeInteger(result.todayCount) || !Array.isArray(result.sessions)
+                            || !Number.isSafeInteger(result.nextAfterMicros)
+                            || !Number.isSafeInteger(result.nextAfterId)
+                            || result.nextAfterMicros < cursorAtMicros
+                            || (result.nextAfterMicros === cursorAtMicros && result.nextAfterId < cursorId)) {
                         throw new Error("Session completion response was invalid.");
                     }
                     if (todayCount) {
@@ -216,11 +230,14 @@
 
                     result.sessions.forEach(session => {
                         if (!Number.isSafeInteger(session.id) || typeof session.studentName !== "string"
-                                || !Number.isSafeInteger(session.completedAt)) {
+                                || !Number.isSafeInteger(session.completedAt)
+                                || !Number.isSafeInteger(session.cursorAtMicros)) {
                             throw new Error("Session completion response contained an invalid session.");
                         }
                         recordCompletion(session, session.completedAt >= pageOpenedAt);
                     });
+                    cursorAtMicros = result.nextAfterMicros;
+                    cursorId = result.nextAfterId;
                     saveNotifications();
                 } catch (error) {
                     console.error(error);
@@ -228,9 +245,17 @@
                         liveStatus.textContent = "Live updates unavailable. Retrying…";
                     }
                 } finally {
-                    window.setTimeout(refreshCompletions, 1000);
+                    requestInFlight = false;
+                    refreshTimeout = window.setTimeout(refreshCompletions, document.hidden ? 30000 : 1000);
                 }
             }
+
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) {
+                    window.clearTimeout(refreshTimeout);
+                    refreshCompletions();
+                }
+            });
 
             refreshCompletions();
         })();

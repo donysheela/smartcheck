@@ -5,7 +5,10 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(name = "tracking_sessions")
+@Table(name = "tracking_sessions", indexes = {
+        @Index(name = "idx_tracking_sessions_active_ends_at", columnList = "active, ends_at"),
+        @Index(name = "idx_tracking_sessions_active_completed_at", columnList = "active, completed_at")
+})
 public class TrackingSession {
 
     @Id

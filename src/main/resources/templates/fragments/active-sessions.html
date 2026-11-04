@@ -13,8 +13,14 @@
             const indicator = document.currentScript.parentElement;
             const count = indicator.querySelector("[data-active-session-count]");
             const endpoint = indicator.dataset.activeSessionsUrl;
+            let refreshTimeout;
+            let requestInFlight = false;
 
             async function refreshCount() {
+                if (requestInFlight) {
+                    return;
+                }
+                requestInFlight = true;
                 try {
                     const response = await fetch(endpoint, {cache: "no-store"});
                     if (!response.ok) {
@@ -28,9 +34,17 @@
                 } catch (error) {
                     console.error(error);
                 } finally {
-                    window.setTimeout(refreshCount, 5000);
+                    requestInFlight = false;
+                    refreshTimeout = window.setTimeout(refreshCount, document.hidden ? 30000 : 5000);
                 }
             }
+
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) {
+                    window.clearTimeout(refreshTimeout);
+                    refreshCount();
+                }
+            });
 
             refreshCount();
         })();

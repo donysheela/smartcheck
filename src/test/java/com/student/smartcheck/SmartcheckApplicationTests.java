@@ -169,7 +169,18 @@ class SmartcheckApplicationTests {
 
         assertThat(response.statusCode()).isBetween(200, 299);
         assertThat(response.body()).contains("\"studentName\":\"Completion Alert Student\"",
-                "\"todayCount\":1");
+                "\"todayCount\":1", "\"nextAfterMicros\":", "\"nextAfterId\":");
+
+        String afterMicros = response.body().replaceAll(".*\"nextAfterMicros\":(\\d+).*", "$1");
+        String afterId = response.body().replaceAll(".*\"nextAfterId\":(\\d+).*", "$1");
+        HttpResponse<String> incrementalResponse = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/api/session-completions?afterMicros="
+                                + afterMicros + "&afterId=" + afterId))
+                        .GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(incrementalResponse.statusCode()).isBetween(200, 299);
+        assertThat(incrementalResponse.body()).contains("\"sessions\":[]", "\"todayCount\":1");
     }
 
     @Test

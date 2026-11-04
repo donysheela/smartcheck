@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +17,34 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
     @EntityGraph(attributePaths = "student")
     List<TrackingSession> findByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtAsc(
             Instant start, Instant end);
+    @EntityGraph(attributePaths = "student")
+    @Query("""
+            select session from TrackingSession session
+            where session.active = false
+              and session.completedAt >= :dayStart
+              and session.completedAt < :dayEnd
+              and (session.completedAt > :after
+                   or (session.completedAt = :after and session.id > :afterId))
+            order by session.completedAt asc, session.id asc
+            """)
+    List<TrackingSession> findCompletionsSince(@Param("dayStart") Instant dayStart,
+                                               @Param("dayEnd") Instant dayEnd,
+                                               @Param("after") Instant after,
+                                               @Param("afterId") long afterId);
+    @EntityGraph(attributePaths = "student")
+    @Query("""
+            select session from TrackingSession session
+            where session.active = true
+              and session.endsAt >= :dayStart
+              and session.endsAt <= :now
+              and (session.endsAt > :after
+                   or (session.endsAt = :after and session.id > :afterId))
+            order by session.endsAt asc, session.id asc
+            """)
+    List<TrackingSession> findExpiredActiveSince(@Param("dayStart") Instant dayStart,
+                                                 @Param("now") Instant now,
+                                                 @Param("after") Instant after,
+                                                 @Param("afterId") long afterId);
     long countByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
             Instant start, Instant end);
     long countByActiveTrueAndEndsAtGreaterThanEqualAndEndsAtLessThanEqual(

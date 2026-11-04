@@ -226,20 +226,18 @@ public class SmartcheckService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrackingSession> completedSessionsToday(Instant now) {
+    public List<TrackingSession> completedSessionsSince(Instant now, Instant after, long afterId) {
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = now.atZone(zone).toLocalDate();
         Instant start = today.atStartOfDay(zone).toInstant();
         Instant end = today.plusDays(1).atStartOfDay(zone).toInstant();
         List<TrackingSession> completed = new ArrayList<>(
-                sessions.findByActiveFalseAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtAsc(
-                        start, end));
-        sessions.findByActiveTrue().stream()
-                .filter(session -> !session.getEndsAt().isAfter(now)
-                        && !session.getEndsAt().isBefore(start))
-                .forEach(completed::add);
-        completed.sort(Comparator.comparing(session ->
-                session.getCompletedAt() == null ? session.getEndsAt() : session.getCompletedAt()));
+                sessions.findCompletionsSince(start, end, after, afterId));
+        completed.addAll(sessions.findExpiredActiveSince(start, now, after, afterId));
+        completed.sort(Comparator
+                .comparing((TrackingSession session) -> session.isActive()
+                        ? session.getEndsAt() : session.getCompletedAt())
+                .thenComparing(TrackingSession::getId));
         return completed;
     }
 
