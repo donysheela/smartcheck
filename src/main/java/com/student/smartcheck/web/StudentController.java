@@ -1,6 +1,7 @@
 package com.student.smartcheck.web;
 
 import com.student.smartcheck.application.SmartcheckService;
+import com.student.smartcheck.domain.Student;
 import com.student.smartcheck.domain.TrackingSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,10 +21,18 @@ public class StudentController {
 
     @GetMapping
     public String studentPage(@RequestParam(defaultValue = "") String query,
+                              @RequestParam(required = false) Long selectedStudentId,
                               @RequestParam(required = false) Long session,
                               Model model) {
         model.addAttribute("query", query);
-        model.addAttribute("results", query.isBlank() ? java.util.List.of() : service.searchStudents(query));
+        model.addAttribute("selectedStudentId", selectedStudentId);
+        List<Student> results = query.isBlank() ? List.of() : service.searchStudents(query);
+        if (selectedStudentId != null) {
+            results = results.stream()
+                    .filter(student -> student.getId().equals(selectedStudentId))
+                    .toList();
+        }
+        model.addAttribute("results", results);
         if (session != null) {
             model.addAttribute("activeSession", service.session(session));
         }
@@ -32,14 +41,16 @@ public class StudentController {
 
     @GetMapping("/suggestions")
     @ResponseBody
-    public List<String> suggestions(@RequestParam(defaultValue = "") String query) {
+    public List<StudentSuggestion> suggestions(@RequestParam(defaultValue = "") String query) {
         if (query.trim().length() < 3) {
             return List.of();
         }
         return service.searchStudents(query).stream()
-                .map(student -> student.getName())
-                .distinct()
+                .map(student -> new StudentSuggestion(student.getId(), student.getName()))
                 .toList();
+    }
+
+    public record StudentSuggestion(Long id, String name) {
     }
 
     @PostMapping("/start")

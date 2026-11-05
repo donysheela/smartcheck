@@ -528,4 +528,34 @@ class SmartcheckApplicationTests {
         assertThat(matchingQuery.statusCode()).isBetween(200, 299);
         assertThat(matchingQuery.body()).contains("Suggestion Student");
     }
+
+    @Test
+    void selectingAStudentSuggestionShowsOnlyThatStudent() throws Exception {
+        service.addStudent("Dony First", 30, Gender.FEMALE, java.util.Set.of());
+        service.addStudent("Dony Second", 45, Gender.MALE, java.util.Set.of());
+        service.addStudent("Dony Third", 60, Gender.FEMALE, java.util.Set.of());
+        var selectedStudent = service.searchStudents("Dony").stream()
+                .filter(student -> student.getName().equals("Dony Second"))
+                .findFirst().orElseThrow();
+
+        String baseUrl = "http://localhost:" + environment.getProperty("local.server.port");
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> suggestions = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/student/suggestions?query=Dony")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> selectedPage = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/student?query=Dony&selectedStudentId="
+                        + selectedStudent.getId())).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(suggestions.statusCode()).isBetween(200, 299);
+        assertThat(suggestions.body())
+                .contains("\"id\":" + selectedStudent.getId(), "\"name\":\"Dony Second\"",
+                        "\"name\":\"Dony First\"", "\"name\":\"Dony Third\"");
+        assertThat(selectedPage.statusCode()).isBetween(200, 299);
+        assertThat(java.util.regex.Pattern.compile("<article\\b")
+                .matcher(selectedPage.body()).results().count()).isEqualTo(1);
+        assertThat(selectedPage.body()).contains("Dony Second")
+                .doesNotContain("Dony First", "Dony Third");
+    }
 }
