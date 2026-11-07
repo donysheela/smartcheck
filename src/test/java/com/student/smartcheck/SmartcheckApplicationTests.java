@@ -349,7 +349,11 @@ class SmartcheckApplicationTests {
                         + "/tutor/students?name=Paging%20Student&page=1")).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(firstStudentsPage.body()).contains("Paging Student A", "Paging Student T",
-                        "Page <span>1</span> of <span>2</span>")
+                        "Page <span>1</span> of <span>2</span>",
+                        "data-student-results=\"cards\"",
+                        "data-student-results=\"table\" class=\"hidden\"",
+                        "data-student-view=\"cards\"",
+                        "view=table")
                 .doesNotContain("Paging Student U");
         assertThat(secondStudentsPage.body()).contains("Paging Student U",
                         "Page <span>2</span> of <span>2</span>")
@@ -361,7 +365,9 @@ class SmartcheckApplicationTests {
                 HttpResponse.BodyHandlers.ofString());
         assertThat(sortedStudents.statusCode()).isBetween(200, 299);
         assertThat(sortedStudents.body()).contains("data-student-results=\"table\"",
+                        "data-student-results=\"cards\" class=\"hidden\"",
                         "data-student-view=\"table\"", "Sort by name", "Search by name",
+                        "view=cards",
                         "Paging Student U", "Page <span>1</span> of <span>2</span>")
                 .doesNotContain("Paging Student A");
         assertThat(sortedStudents.body().indexOf("Paging Student U"))
